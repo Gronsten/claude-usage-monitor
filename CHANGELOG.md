@@ -61,7 +61,40 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
 - No credential storage or transmission
 - Local-only data processing
 
-## [Unreleased]
+## [1.1.0] - 2025-10-20
+
+### Added
+- **Smart Activity-Based Refresh** 🚀: Extension now monitors VS Code activity and adjusts refresh intervals dynamically
+  - Heavy coding (100+ edits/15min): 5-minute refresh
+  - Moderate activity (30-100 edits/15min): 15-minute refresh
+  - Light activity (1-30 edits/15min): 30-minute refresh
+  - Idle (no activity): 60-minute refresh
+- **Activity Level Tooltip**: Status bar hover now displays current activity level and next refresh interval
+  - Example: "Activity level: Heavy (5 min refresh)"
+- New configuration option `claudeUsage.activityBasedRefresh` (default: `true`)
+- Activity monitoring module (`activityMonitor.js`) tracks text edits, file saves, and editor changes
+- Console logging of activity levels and next refresh time for debugging
+- Smart session detection checks for existing cookies before launching browser
+- Activity level checked on startup to set initial refresh interval
+
+### Changed
+- **Auto-Start Enabled by Default**: `claudeUsage.fetchOnStartup` now defaults to `true` - usage fetches automatically on VS Code startup
+- **Headless Mode Enabled by Default**: `claudeUsage.headless` now defaults to `true` - browser runs hidden after initial login
+- **Smart Headless Detection**: Browser automatically shows if login is needed (no session found), runs hidden otherwise
+- Direct navigation to `https://claude.ai/settings/usage` in both `ensureLoggedIn()` and `fetchUsageData()` (skips homepage redirect)
+- Removed unnecessary tab clicking and intermediate navigation logic from scraper
+- Updated default `autoRefreshMinutes` from `0` to `15` (used only when activity-based refresh is disabled)
+- Configuration descriptions updated to reflect new smart defaults
+
+### Improved
+- Faster initial load: eliminates redirect through `claude.ai/new` page
+- Better performance: reduced navigation steps from 2+ to 1
+- Smarter refresh scheduling based on actual coding activity
+- More efficient session handling with cookie-based detection
+- No browser window shown unless login is actually required
+
+### Fixed
+- Extension now works correctly with F5 debugging (removed unnecessary `preLaunchTask` from launch.json)
 
 ### Planned Features
 - Usage history tracking and graphing

@@ -11,7 +11,8 @@ claude-usage/
 ├── src/
 │   ├── scraper.js        # Puppeteer browser controller
 │   ├── dataProvider.js   # Tree view data provider
-│   └── statusBar.js      # Status bar manager
+│   ├── statusBar.js      # Status bar manager
+│   └── activityMonitor.js # Activity detection (NEW)
 ├── .vscode/
 │   └── launch.json       # Debug configuration
 ├── .vscodeignore         # Files excluded from package
@@ -36,12 +37,14 @@ code .
 - A new VS Code window will open with your extension loaded
 
 ### Step 3: Test Basic Functionality
-1. Look for "$(cloud) Claude Usage" in the status bar (bottom right)
-2. Click it to trigger the first fetch
-3. A browser window will open to claude.ai
-4. Log in with your Claude.ai credentials
-5. Wait for the extension to fetch your usage data
-6. You should see a notification with your usage percentage!
+1. **Automatic Startup**: The extension will fetch usage data automatically after 2 seconds
+2. **First-Time Login**: If you haven't logged in before:
+   - A browser window will open to claude.ai
+   - Log in with your Claude.ai credentials
+   - The extension will automatically detect login and continue
+3. **Subsequent Uses**: Browser runs in headless (hidden) mode
+4. You should see a notification with your usage percentage!
+5. Look for "Claude Usage" in the status bar (bottom right)
 
 ### Step 4: Verify Features
 - **Status Bar**: Should show "✓ Claude: XX%"
@@ -54,11 +57,18 @@ Press `Ctrl+,` to open settings and search for "Claude Usage":
 
 ```json
 {
-  "claudeUsage.fetchOnStartup": false,        // Auto-fetch when VS Code starts
-  "claudeUsage.headless": true,              // Run browser in background
-  "claudeUsage.autoRefreshMinutes": 30       // Auto-refresh every 30 min
+  "claudeUsage.fetchOnStartup": true,            // Auto-fetch when VS Code starts (DEFAULT)
+  "claudeUsage.headless": true,                  // Run browser in background (DEFAULT)
+  "claudeUsage.activityBasedRefresh": true,      // Smart refresh based on activity (DEFAULT)
+  "claudeUsage.autoRefreshMinutes": 15           // Fixed interval (if activity-based disabled)
 }
 ```
+
+**New Feature**: Activity-based refresh automatically adjusts timing:
+- Heavy coding: Every 5 minutes
+- Moderate work: Every 15 minutes
+- Light activity: Every 30 minutes
+- Idle: Every 60 minutes
 
 ## 📦 Packaging for Distribution
 
@@ -132,6 +142,12 @@ vsce publish
 - Shows color-coded usage indicators
 - Provides tooltips
 
+### src/activityMonitor.js (NEW)
+- Monitors VS Code text edits, file saves, editor changes
+- Calculates activity level (heavy/moderate/light/idle)
+- Recommends refresh intervals based on activity
+- Resets counters every 15 minutes
+
 ## 🐛 Troubleshooting
 
 ### Browser won't launch
@@ -159,10 +175,12 @@ npm install puppeteer
 
 ## 💡 Tips
 
-- **First login**: Keep browser visible (`headless: false`)
-- **After login**: Enable headless mode for better performance
-- **Auto-refresh**: Set to 30-60 minutes for passive monitoring
-- **Fetch on startup**: Enable if you want data right away
+- **Smart Defaults**: Extension is pre-configured for optimal experience
+- **First login**: Browser shows automatically when needed
+- **After login**: Runs silently in background (headless mode)
+- **Activity-based refresh**: Adjusts automatically based on your coding
+- **Manual fetch**: Click status bar or use Command Palette anytime
+- **Debug mode**: Check console logs for activity level and next refresh time
 
 ## 🎉 Success Criteria
 

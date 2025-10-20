@@ -27,8 +27,9 @@ function createStatusBarItem(context) {
  * @param {number} usageData.usagePercent
  * @param {string} usageData.resetTime
  * @param {Date} usageData.timestamp
+ * @param {Object} activityStats - Optional activity monitor stats
  */
-function updateStatusBar(item, usageData) {
+function updateStatusBar(item, usageData, activityStats = null) {
     if (!usageData) {
         item.text = '$(cloud) Claude Usage';
         item.tooltip = 'Click to fetch Claude usage data';
@@ -58,10 +59,18 @@ function updateStatusBar(item, usageData) {
     const tooltipLines = [
         `Claude Usage: ${usageData.usagePercent}%`,
         `Resets in: ${usageData.resetTime}`,
-        `Last updated: ${usageData.timestamp.toLocaleTimeString()}`,
-        '',
-        'Click to refresh'
+        `Last updated: ${usageData.timestamp.toLocaleTimeString()}`
     ];
+
+    // Add activity-based refresh info if available
+    if (activityStats) {
+        const levelLabel = activityStats.level.charAt(0).toUpperCase() + activityStats.level.slice(1);
+        tooltipLines.push('');
+        tooltipLines.push(`Activity level: ${levelLabel} (${activityStats.recommendedInterval} min refresh)`);
+    }
+
+    tooltipLines.push('');
+    tooltipLines.push('Click to refresh');
 
     item.tooltip = tooltipLines.join('\n');
 }

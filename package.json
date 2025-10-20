@@ -2,7 +2,7 @@
   "name": "claude-usage-monitor",
   "displayName": "Claude Usage Monitor",
   "description": "Monitor your Claude.ai usage directly in VS Code",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "publisher": "Gronsten",
   "author": {
     "name": "Mark Campbell",
@@ -58,18 +58,23 @@
       "properties": {
         "claudeUsage.fetchOnStartup": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Automatically fetch usage data when VS Code starts"
         },
         "claudeUsage.headless": {
           "type": "boolean",
-          "default": false,
-          "description": "Run browser in headless mode (after first login)"
+          "default": true,
+          "description": "Run browser in headless (hidden) mode. Browser will show automatically if login is needed."
+        },
+        "claudeUsage.activityBasedRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically adjust refresh rate based on coding activity (5-60 minutes). Disable to use fixed interval."
         },
         "claudeUsage.autoRefreshMinutes": {
           "type": "number",
-          "default": 0,
-          "description": "Auto-refresh interval in minutes (0 = disabled)"
+          "default": 15,
+          "description": "Fixed auto-refresh interval in minutes (only used when Activity-Based Refresh is disabled)"
         }
       }
     }
