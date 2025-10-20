@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# VS Code testing
+.vscode-test/
+
+# Packaged extension files
+*.vsix
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+
+# Build output
+out/
+dist/
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.swp
+*~
