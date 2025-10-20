@@ -7,9 +7,16 @@ Monitor your Claude.ai chat usage directly in VS Code. This extension uses Puppe
 - **Real-time Usage Monitoring**: See your Claude.ai usage percentage at a glance
 - **Status Bar Integration**: Quick view in the VS Code status bar
 - **Tree View Panel**: Detailed usage information in a dedicated side panel
-- **Auto-refresh**: Optional automatic usage updates
+- **Smart Activity-Based Refresh**: Automatically adjusts refresh rate based on your coding activity
+  - **Heavy coding** (100+ edits/15min): Refresh every 5 minutes
+  - **Moderate activity** (30-100 edits/15min): Refresh every 15 minutes
+  - **Light activity** (1-30 edits/15min): Refresh every 30 minutes
+  - **Idle** (no activity): Refresh every 60 minutes
+- **Auto-Start**: Fetches usage data automatically when VS Code starts
+- **Silent Mode**: Runs browser in headless (hidden) mode, shows window only if login needed
 - **Session Persistence**: Log in once, stay authenticated across VS Code sessions
 - **Visual Indicators**: Color-coded warnings when approaching usage limits
+- **Direct Navigation**: Optimized scraping that goes straight to the usage page
 
 ## Installation
 
@@ -29,13 +36,18 @@ Monitor your Claude.ai chat usage directly in VS Code. This extension uses Puppe
 
 ## First-Time Setup
 
-The first time you fetch usage data, you'll need to log in to Claude.ai:
+The extension will **automatically fetch usage data** when VS Code starts. If you haven't logged in before:
 
-1. Click the "Claude Usage" item in the status bar, or run the command "Fetch Claude Usage Now"
-2. A browser window will open to claude.ai
-3. Log in with your credentials (Google, email, etc.)
-4. Once logged in, the extension will automatically fetch your usage data
-5. Your session is saved locally - you won't need to log in again!
+1. A browser window will appear (the extension detected you need to log in)
+2. Log in to Claude.ai with your credentials (Google, email, etc.)
+3. Once logged in, the extension automatically fetches your usage data
+4. Your session is saved locally - you won't need to log in again!
+5. Future fetches run **silently in the background** (no browser window)
+
+**That's it!** The extension will now:
+- Fetch usage automatically on startup
+- Refresh at smart intervals based on your coding activity
+- Run completely hidden unless login is required
 
 ## Usage
 
@@ -56,6 +68,11 @@ There are several ways to fetch your usage data:
   - Green check: < 80% usage
   - Orange warning: 80-89% usage
   - Red error: ≥ 90% usage
+  - **Hover tooltip** shows:
+    - Usage percentage
+    - Reset time
+    - Last update timestamp
+    - **Activity level and next refresh interval** (e.g., "Heavy (5 min refresh)")
 
 - **Tree View Panel**: Shows detailed information:
   - Usage percentage
@@ -68,24 +85,39 @@ Open VS Code Settings and search for "Claude Usage" to configure:
 
 ### `claudeUsage.fetchOnStartup`
 - **Type**: Boolean
-- **Default**: `false`
+- **Default**: `true` ✅
 - **Description**: Automatically fetch usage data when VS Code starts
 
 ### `claudeUsage.headless`
 - **Type**: Boolean
-- **Default**: `false`
-- **Description**: Run browser in headless mode (invisible) after first login. Set to `true` for better performance after initial setup.
+- **Default**: `true` ✅
+- **Description**: Run browser in headless (hidden) mode. Browser will show automatically if login is needed.
+
+### `claudeUsage.activityBasedRefresh` 🆕
+- **Type**: Boolean
+- **Default**: `true` ✅
+- **Description**: Automatically adjust refresh rate based on coding activity (5-60 minutes). Disable to use fixed interval.
 
 ### `claudeUsage.autoRefreshMinutes`
 - **Type**: Number
-- **Default**: `0` (disabled)
-- **Description**: Automatically refresh usage data every X minutes. Set to `0` to disable auto-refresh.
+- **Default**: `15`
+- **Description**: Fixed auto-refresh interval in minutes (only used when Activity-Based Refresh is disabled)
 
-**Example Configuration** (`settings.json`):
+**Recommended Configuration** (`settings.json`):
 ```json
 {
   "claudeUsage.fetchOnStartup": true,
   "claudeUsage.headless": true,
+  "claudeUsage.activityBasedRefresh": true
+}
+```
+
+**For Fixed Interval Instead** (`settings.json`):
+```json
+{
+  "claudeUsage.fetchOnStartup": true,
+  "claudeUsage.headless": true,
+  "claudeUsage.activityBasedRefresh": false,
   "claudeUsage.autoRefreshMinutes": 30
 }
 ```
@@ -99,12 +131,31 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 ## How It Works
 
+### Smart Activity Detection
+The extension monitors your VS Code activity to optimize refresh timing:
+- Tracks text edits, file saves, and editor changes
+- Calculates activity level every 15 minutes
+- Adjusts refresh rate automatically:
+  - **Heavy coding**: 5-minute intervals
+  - **Moderate work**: 15-minute intervals
+  - **Light activity**: 30-minute intervals
+  - **Idle/break**: 60-minute intervals
+
+### Headless Browser Operation
 1. The extension uses Puppeteer to launch a Chromium browser
-2. On first run, you manually log in to Claude.ai
-3. Your session is saved to `~/.claude-browser-session/` for future use
-4. The extension navigates to `claude.ai/settings`
-5. Usage data is extracted from the page and displayed in VS Code
-6. Subsequent fetches use your saved session (no re-login required)
+2. On first run, it detects you need to log in (no session cookies found)
+3. Browser launches in **visible mode** so you can log in manually
+4. Your session is saved to `~/.claude-browser-session/` for future use
+5. Subsequent fetches launch browser in **headless mode** (completely hidden)
+6. The extension navigates directly to `https://claude.ai/settings/usage`
+7. Usage data is extracted from the page and displayed in VS Code
+8. Browser closes automatically to save resources
+
+### Session Persistence
+- Session cookies are stored locally by Chromium
+- No credentials are stored by the extension
+- Sessions typically last several weeks before expiring
+- If session expires, browser will show again for re-login
 
 ## Privacy & Security
 
@@ -156,9 +207,10 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 **Problem**: Browser uses too much memory
 
 **Solutions**:
-- Enable `headless` mode after first login
-- Disable `autoRefreshMinutes` or increase the interval
+- `headless` mode is enabled by default - browser runs hidden
+- Activity-based refresh automatically reduces frequency when idle
 - The browser closes automatically after fetching to save memory
+- If using fixed interval, increase `autoRefreshMinutes` to reduce frequency
 
 ## Known Limitations
 

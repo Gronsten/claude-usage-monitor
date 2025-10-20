@@ -69,15 +69,53 @@ class ClaudeUsageScraper {
     }
 
     /**
-     * Initialize the Puppeteer browser instance
+     * Check if session is logged in by looking for session files
+     * @returns {boolean} True if likely logged in
      */
-    async initialize() {
+    hasExistingSession() {
+        try {
+            // Check if session directory exists and has cookie files
+            if (!fs.existsSync(this.sessionDir)) {
+                return false;
+            }
+
+            // Look for Chrome's cookie files in the session directory
+            const cookieFiles = [
+                path.join(this.sessionDir, 'Default', 'Cookies'),
+                path.join(this.sessionDir, 'Default', 'Network', 'Cookies')
+            ];
+
+            for (const cookieFile of cookieFiles) {
+                if (fs.existsSync(cookieFile)) {
+                    const stats = fs.statSync(cookieFile);
+                    // If cookie file exists and has content, likely logged in
+                    if (stats.size > 0) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.log('Error checking session:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Initialize the Puppeteer browser instance
+     * @param {boolean} forceHeaded - Force browser to show (for login)
+     */
+    async initialize(forceHeaded = false) {
         if (this.isInitialized && this.browser) {
             return;
         }
 
         const config = vscode.workspace.getConfiguration('claudeUsage');
-        const headless = config.get('headless', false);
+        const userHeadless = config.get('headless', true);
+
+        // Use headless mode unless forced to show or user disabled headless
+        const headless = forceHeaded ? false : userHeadless;
 
         try {
             // Try to find Chrome executable path
@@ -124,7 +162,8 @@ class ClaudeUsageScraper {
      */
     async ensureLoggedIn() {
         try {
-            await this.page.goto('https://claude.ai', {
+            // Navigate directly to settings/usage page
+            await this.page.goto('https://claude.ai/settings/usage', {
                 waitUntil: 'networkidle2',
                 timeout: 30000
             });
@@ -165,18 +204,18 @@ class ClaudeUsageScraper {
     }
 
     /**
-     * Fetch usage data from Claude.ai settings page
+     * Fetch usage data from Claude.ai settings/usage page
      * @returns {Promise<{usagePercent: number, resetTime: string, timestamp: Date}>}
      */
     async fetchUsageData() {
         try {
-            // Navigate to settings page
-            await this.page.goto('https://claude.ai/settings', {
+            // Navigate directly to the usage page
+            await this.page.goto('https://claude.ai/settings/usage', {
                 waitUntil: 'networkidle2',
                 timeout: 30000
             });
 
-            // Wait for dynamic content to load
+            // Wait for page to load and render content
             await this.sleep(2000);
 
             // Extract text content and parse usage data
@@ -210,7 +249,7 @@ class ClaudeUsageScraper {
 
         } catch (error) {
             if (error.message.includes('timeout')) {
-                throw new Error('Settings page took too long to load. Please try again.');
+                throw new Error('Usage page took too long to load. Please try again.');
             }
             throw error;
         }

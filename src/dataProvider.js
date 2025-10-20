@@ -94,9 +94,14 @@ class UsageDataProvider {
                 try {
                     progress.report({ increment: 0, message: 'Initializing browser...' });
 
+                    // Check if we have an existing session for smart headless mode
+                    const hasSession = this.scraper.hasExistingSession();
+                    const needsLogin = this.isFirstFetch && !hasSession;
+
                     // Initialize scraper if needed
+                    // Show browser window only if login is required
                     if (!this.scraper.isInitialized) {
-                        await this.scraper.initialize();
+                        await this.scraper.initialize(!hasSession);
                     }
 
                     progress.report({ increment: 30, message: 'Checking authentication...' });
