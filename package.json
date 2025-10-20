@@ -1,0 +1,83 @@
+{
+  "name": "claude-usage-monitor",
+  "displayName": "Claude Usage Monitor",
+  "description": "Monitor your Claude.ai usage directly in VS Code",
+  "version": "1.0.2",
+  "publisher": "Gronsten",
+  "author": {
+    "name": "Mark Campbell",
+    "url": "https://github.com/Gronsten"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gronsten/claude-usage-monitor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Gronsten/claude-usage-monitor/issues"
+  },
+  "homepage": "https://github.com/Gronsten/claude-usage-monitor#readme",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claude-usage.fetchNow",
+        "title": "Fetch Claude Usage Now",
+        "category": "Claude"
+      },
+      {
+        "command": "claude-usage.openSettings",
+        "title": "Open Claude Settings Page",
+        "category": "Claude"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-usage",
+          "title": "Claude Usage",
+          "icon": "$(pulse)"
+        }
+      ]
+    },
+    "views": {
+      "claude-usage": [
+        {
+          "id": "claude-usage-view",
+          "name": "Session Usage"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Usage Monitor",
+      "properties": {
+        "claudeUsage.fetchOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically fetch usage data when VS Code starts"
+        },
+        "claudeUsage.headless": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run browser in headless mode (after first login)"
+        },
+        "claudeUsage.autoRefreshMinutes": {
+          "type": "number",
+          "default": 0,
+          "description": "Auto-refresh interval in minutes (0 = disabled)"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "puppeteer": "^24.15.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0"
+  }
+}
