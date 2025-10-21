@@ -121,7 +121,16 @@ async function activate(context) {
     );
 }
 
-function deactivate() {
+async function deactivate() {
+    // Reset session tokens to zero for fresh start on next activation
+    if (sessionTracker) {
+        try {
+            await sessionTracker.resetSessionTokens();
+        } catch (error) {
+            console.error('Error resetting session tokens:', error);
+        }
+    }
+
     // Clean up timer
     if (autoRefreshTimer) {
         clearInterval(autoRefreshTimer);
