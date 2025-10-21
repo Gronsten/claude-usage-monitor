@@ -192,6 +192,28 @@ class SessionTracker {
                 : null
         };
     }
+
+    /**
+     * Reset token usage for current session to zero
+     * Useful for clearing session data when Claude Code exits
+     */
+    async resetSessionTokens() {
+        const data = await this.loadData();
+        const session = this.currentSession || (data.sessions.length > 0 ? data.sessions[data.sessions.length - 1] : null);
+
+        if (!session) {
+            console.log('No session to reset');
+            return;
+        }
+
+        // Reset token usage to zero
+        session.tokenUsage.current = 0;
+        session.tokenUsage.remaining = session.tokenUsage.limit;
+        session.tokenUsage.lastUpdate = new Date().toISOString();
+
+        await this.saveData(data);
+        console.log(`Session tokens reset for: ${session.sessionId}`);
+    }
 }
 
 module.exports = { SessionTracker };
