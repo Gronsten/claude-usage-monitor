@@ -33,3 +33,6 @@ coverage/
 
 # Session tracking data
 session-data.json
+
+# Claude Code local settings
+.claude/settings.local.json
