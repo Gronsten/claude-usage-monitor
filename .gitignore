@@ -30,3 +30,6 @@ coverage/
 *.tmp
 *.swp
 *~
+
+# Session tracking data
+session-data.json

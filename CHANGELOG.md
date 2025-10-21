@@ -2,6 +2,52 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.0.0] - 2025-10-21
+
+### Major Changes
+- **BREAKING**: Removed complex activity-based refresh scheduling - now uses simple fixed 5-minute interval
+- **NEW**: Session token tracking integration - displays both Claude.ai usage AND session token usage
+- **NEW**: Usage level indicator now based on actual Claude usage, not keyboard edits
+- **Simplified**: Default refresh interval is now 5 minutes for all usage checks
+
+### Added
+- Session token usage display in status bar (e.g., "Claude: 45% | Tokens: 26%")
+- Reads `session-data.json` to show current development session token usage
+- **New Activity Level Logic**: Shows "Claude time remaining" based on actual usage
+  - Idle (0-24%): Plenty of Claude time remaining
+  - Light (25-49%): Quarter of usage consumed
+  - Moderate (50-79%): Halfway through available usage
+  - Heavy (80-100%): Running low on Claude time!
+  - Calculated from MAX of Claude.ai % or session token %
+- Enhanced tooltip shows:
+  - Claude.ai usage percentage and reset time
+  - Session token usage (current/limit/percentage)
+  - Session ID
+  - Usage level with description
+
+### Removed
+- Activity-based dynamic refresh scheduling (was redundant and conceptually flawed)
+- `activityBasedRefresh` configuration option
+- Complex `scheduleNextRefresh()` and `checkAndRescheduleIfNeeded()` logic
+- VS Code edit tracking (text document changes, file saves, editor switches)
+- Edit count and file change count metrics
+
+### Changed
+- Default `autoRefreshMinutes` changed from 15 to 5
+- Refresh interval is now fixed (not dynamic based on activity)
+- Status bar updates include session data from `session-data.json`
+- Simplified configuration with single `autoRefreshMinutes` setting
+
+### Technical Changes
+- Integrated `SessionTracker` class for reading session data
+- Updated `updateStatusBar()` to accept optional `sessionData` parameter
+- New `updateStatusBarWithAllData()` helper consolidates all status bar updates
+- Removed `activityCheckTimer` (no longer needed)
+- **Rewrote `ActivityMonitor` class**: Now stateless, calculates from usage data on-demand
+- `getStats()` now accepts `usageData` and `sessionData` parameters
+- Activity level based on `Math.max(claudePercent, tokenPercent)` with thresholds: 25%, 50%, 80%
+- Removed all VS Code event listeners (no longer tracking edits)
+
 ## [1.0.2] - 2025-10-20
 
 ### Fixed
