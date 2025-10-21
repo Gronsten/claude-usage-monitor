@@ -2,7 +2,7 @@
   "name": "claude-session-usage",
   "displayName": "Claude Session Usage",
   "description": "Monitor your Claude.ai usage directly in VS Code with smart activity-based refresh",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "publisher": "Gronsten",
   "author": {
     "name": "Mark Campbell",
@@ -66,15 +66,10 @@
           "default": true,
           "description": "Run browser in headless (hidden) mode. Browser will show automatically if login is needed."
         },
-        "claudeUsage.activityBasedRefresh": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically adjust refresh rate based on coding activity (5-60 minutes). Disable to use fixed interval."
-        },
         "claudeUsage.autoRefreshMinutes": {
           "type": "number",
-          "default": 15,
-          "description": "Fixed auto-refresh interval in minutes (only used when Activity-Based Refresh is disabled)"
+          "default": 5,
+          "description": "Auto-refresh interval in minutes for checking Claude.ai usage and session token data"
         }
       }
     }

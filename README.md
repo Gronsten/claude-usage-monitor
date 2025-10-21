@@ -4,14 +4,17 @@ Monitor your Claude.ai chat usage directly in VS Code. This extension uses Puppe
 
 ## Features
 
-- **Real-time Usage Monitoring**: See your Claude.ai usage percentage at a glance
-- **Status Bar Integration**: Quick view in the VS Code status bar
+- **Dual Usage Monitoring**: Track both Claude.ai usage AND development session token usage
+  - Claude.ai monthly usage percentage
+  - Current session token count (from `session-data.json`)
+  - Automatically updated when developing with Claude Code (see [SESSION_TRACKING.md](SESSION_TRACKING.md))
+- **Status Bar Integration**: See both percentages at a glance (e.g., "Claude: 45% | Tokens: 26%")
 - **Tree View Panel**: Detailed usage information in a dedicated side panel
-- **Smart Activity-Based Refresh**: Automatically adjusts refresh rate based on your coding activity
-  - **Heavy coding** (100+ edits/15min): Refresh every 5 minutes
-  - **Moderate activity** (30-100 edits/15min): Refresh every 15 minutes
-  - **Light activity** (1-30 edits/15min): Refresh every 30 minutes
-  - **Idle** (no activity): Refresh every 60 minutes
+- **Fixed 5-Minute Refresh**: Simple, reliable refresh every 5 minutes
+- **Usage Level Indicator**: Shows how much "Claude time" remains (Idle/Light/Moderate/Heavy)
+  - Based on max of Claude.ai usage % or session token %
+  - Idle (0-24%): Plenty of Claude time! | Light (25-49%): Quarter+ used
+  - Moderate (50-79%): Much work, many thought | Heavy (80-100%): Running low!
 - **Auto-Start**: Fetches usage data automatically when VS Code starts
 - **Silent Mode**: Runs browser in headless (hidden) mode, shows window only if login needed
 - **Session Persistence**: Log in once, stay authenticated across VS Code sessions
@@ -46,7 +49,9 @@ The extension will **automatically fetch usage data** when VS Code starts. If yo
 
 **That's it!** The extension will now:
 - Fetch usage automatically on startup
-- Refresh at smart intervals based on your coding activity
+- Refresh every 5 minutes (configurable)
+- Display both Claude.ai and session token usage
+- Show your coding activity level
 - Run completely hidden unless login is required
 
 ## Usage

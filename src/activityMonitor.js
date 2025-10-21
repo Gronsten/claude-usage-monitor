@@ -1,127 +1,92 @@
-const vscode = require('vscode');
-
 /**
- * Monitors VS Code activity to determine coding intensity
- * and recommend appropriate refresh intervals
+ * Calculates activity level based on Claude.ai usage and session token usage
+ * to show how much "Claude time" remains
  */
 class ActivityMonitor {
     constructor() {
-        this.editCount = 0;
-        this.fileChangeCount = 0;
-        this.lastActivityTime = Date.now();
-        this.activityWindow = 15 * 60 * 1000; // 15 minute window
-        this.listeners = [];
+        // No state needed - we calculate on-demand from usage data
     }
 
     /**
-     * Start monitoring VS Code activity
+     * Start monitoring - kept for backwards compatibility but does nothing now
      * @param {vscode.ExtensionContext} context
      */
     startMonitoring(context) {
-        // Monitor text document changes (typing)
-        const textChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
-            if (event.contentChanges.length > 0) {
-                this.editCount++;
-                this.lastActivityTime = Date.now();
-            }
-        });
-
-        // Monitor file saves
-        const fileSaveListener = vscode.workspace.onDidSaveTextDocument(() => {
-            this.fileChangeCount++;
-            this.lastActivityTime = Date.now();
-        });
-
-        // Monitor active editor changes
-        const editorChangeListener = vscode.window.onDidChangeActiveTextEditor(() => {
-            this.lastActivityTime = Date.now();
-        });
-
-        context.subscriptions.push(textChangeListener);
-        context.subscriptions.push(fileSaveListener);
-        context.subscriptions.push(editorChangeListener);
-
-        // Reset counters periodically (every 15 minutes)
-        const resetInterval = setInterval(() => {
-            this.resetCounters();
-        }, this.activityWindow);
-
-        context.subscriptions.push({
-            dispose: () => clearInterval(resetInterval)
-        });
+        // No longer needed - we calculate from usage data instead
     }
 
     /**
-     * Reset activity counters
-     */
-    resetCounters() {
-        this.editCount = 0;
-        this.fileChangeCount = 0;
-    }
-
-    /**
-     * Get current activity level
+     * Get current activity level based on Claude usage
+     * @param {Object} usageData - Claude.ai usage data
+     * @param {Object} sessionData - Session token data
      * @returns {'heavy'|'moderate'|'light'|'idle'}
      */
-    getActivityLevel() {
-        const timeSinceLastActivity = Date.now() - this.lastActivityTime;
+    getActivityLevel(usageData = null, sessionData = null) {
+        // Calculate percentages
+        const claudePercent = usageData ? usageData.usagePercent : 0;
 
-        // If no activity in last 30 minutes, consider idle
-        if (timeSinceLastActivity > 30 * 60 * 1000) {
-            return 'idle';
+        let tokenPercent = 0;
+        if (sessionData && sessionData.tokenUsage) {
+            tokenPercent = Math.round((sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100);
         }
 
-        // Heavy: More than 100 edits in 15 minutes (active coding)
-        if (this.editCount > 100) {
-            return 'heavy';
-        }
+        // Use the HIGHER of the two percentages (most urgent)
+        const maxPercent = Math.max(claudePercent, tokenPercent);
 
-        // Moderate: 30-100 edits in 15 minutes
-        if (this.editCount > 30) {
-            return 'moderate';
-        }
-
-        // Light: 1-30 edits in 15 minutes
-        if (this.editCount > 0) {
-            return 'light';
-        }
-
-        // Idle: No edits but recent activity
-        return 'idle';
-    }
-
-    /**
-     * Get recommended refresh interval in minutes based on activity
-     * @returns {number} Minutes between refreshes
-     */
-    getRecommendedRefreshInterval() {
-        const level = this.getActivityLevel();
-
-        switch (level) {
-            case 'heavy':
-                return 5;  // Every 5 minutes when actively coding
-            case 'moderate':
-                return 15; // Every 15 minutes for moderate activity
-            case 'light':
-                return 30; // Every 30 minutes for light activity
-            case 'idle':
-            default:
-                return 60; // Every 60 minutes when idle
+        // Determine activity level based on max usage
+        if (maxPercent >= 80) {
+            return 'heavy';      // 80-100% - Getting critical!
+        } else if (maxPercent >= 50) {
+            return 'moderate';   // 50-79% - Halfway there
+        } else if (maxPercent >= 25) {
+            return 'light';      // 25-49% - Quarter used
+        } else {
+            return 'idle';       // 0-24% - Plenty left
         }
     }
 
     /**
      * Get activity statistics for display
+     * @param {Object} usageData - Claude.ai usage data
+     * @param {Object} sessionData - Session token data
      * @returns {object}
      */
-    getStats() {
+    getStats(usageData = null, sessionData = null) {
+        const claudePercent = usageData ? usageData.usagePercent : 0;
+
+        let tokenPercent = 0;
+        if (sessionData && sessionData.tokenUsage) {
+            tokenPercent = Math.round((sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100);
+        }
+
+        const maxPercent = Math.max(claudePercent, tokenPercent);
+        const level = this.getActivityLevel(usageData, sessionData);
+
         return {
-            level: this.getActivityLevel(),
-            editCount: this.editCount,
-            fileChangeCount: this.fileChangeCount,
-            recommendedInterval: this.getRecommendedRefreshInterval(),
-            timeSinceLastActivity: Math.floor((Date.now() - this.lastActivityTime) / 1000)
+            level: level,
+            claudePercent: claudePercent,
+            tokenPercent: tokenPercent,
+            maxPercent: maxPercent,
+            description: this.getActivityDescription(level, claudePercent, tokenPercent)
         };
+    }
+
+    /**
+     * Get human-readable description of activity level
+     * @param {string} level
+     * @param {number} claudePercent
+     * @param {number} tokenPercent
+     * @returns {string}
+     */
+    getActivityDescription(level, claudePercent, tokenPercent) {
+        const descriptions = {
+            'heavy': 'Running low!',
+            'moderate': 'Much work, many thought',
+            'light': 'Quarter+ used',
+            'idle': 'Plenty of Claude time!'
+        };
+
+        return descriptions[level] || 'Unknown';
     }
 }
 
