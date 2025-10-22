@@ -49,10 +49,84 @@ claude-usage/
 
 ## Session Token Tracking
 
-This extension tracks Claude session token usage. After tool calls that consume significant tokens, update the session tracking:
+This extension tracks Claude Code session token usage in real-time.
+
+### Session Lifecycle (Important!)
+
+Claude Code conversations and VS Code extension lifecycles are different:
+- **Claude Code Conversation**: Starts when you begin a new chat, ends when you start another chat
+- **Extension Lifecycle**: Activates/deactivates when VS Code starts/stops or reloads
+
+**Key Point:** Sessions should track Claude Code conversations, NOT extension activations.
+
+### Starting a New Session
+
+**At the beginning of each NEW Claude Code conversation**, run:
+
+```bash
+# In the extension's directory
+cd "c:\Users\mark.campbell3\OneDrive - Chick-fil-A, Inc\Desktop\!_WORKING\vscode-extensions\claude-usage"
+node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().startSession('Your session description').then(s=>console.log('Started:',s.sessionId))"
+```
+
+Or use the VS Code command: **"Claude: Start New Claude Code Session"**
+
+This creates a new session with tokens starting at 0.
+
+### IMPORTANT: Update After Every Response
+
+**You MUST update the session-data.json file after EVERY response that includes tool calls.**
+
+Look for the `<system_warning>Token usage: X/200000` message and use that number to update the session file:
 
 ```bash
 node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().updateTokens(CURRENT_TOKENS,200000)"
 ```
 
-Replace `CURRENT_TOKENS` with the actual token count from system warnings.
+### Example Workflow
+
+**Day 1 - New Claude Code Conversation:**
+1. Start new chat in Claude Code
+2. **Run:** `node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().startSession('Implementing resilient data fetching').then(s=>console.log('Started:',s.sessionId))"`
+3. You make tool calls (Read, Edit, Bash, etc.)
+4. System shows: `<system_warning>Token usage: 48801/200000; 151199 remaining</system_warning>`
+5. **IMMEDIATELY run:**
+   ```bash
+   node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().updateTokens(48801,200000)"
+   ```
+6. Continue working, updating tokens after each response
+
+**Later - VS Code Reload (same conversation):**
+7. You reload VS Code or the extension
+8. **DO NOT start a new session** - you're still in the same Claude Code conversation
+9. Continue updating tokens as before
+
+**Day 2 - New Claude Code Conversation:**
+10. Start new chat in Claude Code
+11. **Run:** Start new session command again (step 2)
+12. Tokens reset to 0 for this new conversation
+
+### When to Update Tokens
+
+- ✅ After every response with tool calls
+- ✅ After reading/writing multiple files
+- ✅ After running bash commands
+- ✅ At major milestones in the conversation
+- ❌ Don't wait until end of conversation
+- ❌ Don't skip "small" tool calls
+
+### When to Start New Session
+
+- ✅ At the START of a new Claude Code conversation (new chat)
+- ✅ When beginning a completely new development task
+- ❌ **NOT** when reloading VS Code
+- ❌ **NOT** when extension activates/deactivates
+- ❌ **NOT** in the middle of an ongoing conversation
+
+### Why This Matters
+
+The extension you're developing displays these token stats in the VS Code status bar. Keeping this file updated ensures:
+- Real-time token usage visibility
+- Accurate per-conversation session tracking
+- Testing of the extension's own functionality
+- Historical record of token usage per development session
