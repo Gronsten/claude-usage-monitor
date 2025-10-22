@@ -139,9 +139,11 @@ async function deactivate() {
 
     // Close scraper browser if open
     if (dataProvider && dataProvider.scraper) {
-        dataProvider.scraper.close().catch(err => {
+        try {
+            await dataProvider.scraper.close();
+        } catch (err) {
             console.error('Error closing scraper:', err);
-        });
+        }
     }
 }
 

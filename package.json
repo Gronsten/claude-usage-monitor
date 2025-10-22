@@ -2,7 +2,7 @@
   "name": "claude-session-usage",
   "displayName": "Claude Session Usage",
   "description": "Monitor your Claude.ai usage directly in VS Code with smart activity-based refresh",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "publisher": "Gronsten",
   "author": {
     "name": "Mark Campbell",

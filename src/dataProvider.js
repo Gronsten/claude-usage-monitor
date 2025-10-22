@@ -82,6 +82,8 @@ class UsageDataProvider {
 
     /**
      * Fetch usage data from Claude.ai
+     * Note: This method is resilient - it will succeed even if web scraping fails
+     * since session token data is read from local JSON file independently
      */
     async fetchUsage() {
         return vscode.window.withProgress(
@@ -91,6 +93,9 @@ class UsageDataProvider {
                 cancellable: false
             },
             async (progress) => {
+                let webScrapeFailed = false;
+                let webScrapeError = null;
+
                 try {
                     progress.report({ increment: 0, message: 'Initializing browser...' });
 
@@ -114,23 +119,38 @@ class UsageDataProvider {
 
                     progress.report({ increment: 60, message: 'Fetching usage data...' });
 
-                    // Fetch usage data
+                    // Fetch usage data from web scrape
                     this.usageData = await this.scraper.fetchUsageData();
 
                     progress.report({ increment: 100, message: 'Complete!' });
 
-                    // Refresh tree view
-                    this.refresh();
+                } catch (error) {
+                    // Web scrape failed, but don't fail the entire operation
+                    // Session token data can still be read from local JSON
+                    console.error('Web scrape failed:', error);
+                    webScrapeFailed = true;
+                    webScrapeError = error;
 
+                    // Keep existing usage data if available, or set to null
+                    if (!this.usageData) {
+                        this.usageData = null;
+                    }
+                }
+
+                // Always refresh tree view (will show session data even if web scrape failed)
+                this.refresh();
+
+                // Show appropriate message based on what succeeded
+                if (webScrapeFailed) {
+                    vscode.window.showWarningMessage(
+                        `⚠️ Web scrape failed: ${webScrapeError.message}. Session token data still available.`
+                    );
+                } else {
                     // Show success message
                     const usageIcon = this.usageData.usagePercent >= 80 ? '⚠️' : '✅';
                     vscode.window.showInformationMessage(
                         `${usageIcon} Claude Usage: ${this.usageData.usagePercent}% | Resets in: ${this.usageData.resetTime}`
                     );
-
-                } catch (error) {
-                    vscode.window.showErrorMessage(`Failed to fetch Claude usage: ${error.message}`);
-                    throw error;
                 }
             }
         );

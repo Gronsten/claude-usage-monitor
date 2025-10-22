@@ -10,6 +10,8 @@ class ClaudeUsageScraper {
         this.page = null;
         this.sessionDir = path.join(os.homedir(), '.claude-browser-session');
         this.isInitialized = false;
+        this.debugPort = 9222; // Chrome remote debugging port
+        this.isConnectedBrowser = false; // Track if we connected vs launched
     }
 
     /**
@@ -69,6 +71,54 @@ class ClaudeUsageScraper {
     }
 
     /**
+     * Try to connect to an existing browser instance
+     * @returns {Promise<boolean>} True if connected successfully
+     */
+    async tryConnectToExisting() {
+        try {
+            const browserURL = `http://127.0.0.1:${this.debugPort}`;
+            this.browser = await puppeteer.connect({
+                browserURL,
+                defaultViewport: null // Use the browser's viewport
+            });
+
+            // Get existing pages or create a new one
+            const pages = await this.browser.pages();
+            if (pages.length > 0) {
+                // Try to find a page that's already on Claude
+                for (const page of pages) {
+                    const url = page.url();
+                    if (url.includes('claude.ai')) {
+                        this.page = page;
+                        break;
+                    }
+                }
+
+                // If no Claude page found, use the first page
+                if (!this.page) {
+                    this.page = pages[0];
+                }
+            } else {
+                // Create a new page if none exist
+                this.page = await this.browser.newPage();
+            }
+
+            // Set a realistic user agent
+            await this.page.setUserAgent(
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            );
+
+            this.isInitialized = true;
+            this.isConnectedBrowser = true; // Mark as connected (not launched)
+            console.log('Successfully connected to existing browser');
+            return true;
+        } catch (error) {
+            console.log('Could not connect to existing browser:', error.message);
+            return false;
+        }
+    }
+
+    /**
      * Check if session is logged in by looking for session files
      * @returns {boolean} True if likely logged in
      */
@@ -107,10 +157,27 @@ class ClaudeUsageScraper {
      * @param {boolean} forceHeaded - Force browser to show (for login)
      */
     async initialize(forceHeaded = false) {
+        // Check if browser is still connected
         if (this.isInitialized && this.browser) {
-            return;
+            try {
+                // Test if browser is still alive
+                await this.browser.version();
+                return; // Browser is still running, reuse it
+            } catch (error) {
+                // Browser was closed, reset state
+                this.browser = null;
+                this.page = null;
+                this.isInitialized = false;
+            }
         }
 
+        // First, try to connect to an existing browser instance
+        const connected = await this.tryConnectToExisting();
+        if (connected) {
+            return; // Successfully connected to existing browser
+        }
+
+        // No existing browser found, launch a new one
         const config = vscode.workspace.getConfiguration('claudeUsage');
         const userHeadless = config.get('headless', true);
 
@@ -128,7 +195,8 @@ class ClaudeUsageScraper {
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
-                    '--disable-blink-features=AutomationControlled'
+                    '--disable-blink-features=AutomationControlled',
+                    `--remote-debugging-port=${this.debugPort}` // Enable remote debugging
                 ],
                 defaultViewport: {
                     width: 1280,
@@ -141,6 +209,7 @@ class ClaudeUsageScraper {
                 launchOptions.executablePath = executablePath;
             }
 
+            console.log(`Launching new browser with remote debugging on port ${this.debugPort}`);
             this.browser = await puppeteer.launch(launchOptions);
 
             this.page = await this.browser.newPage();
@@ -151,7 +220,13 @@ class ClaudeUsageScraper {
             );
 
             this.isInitialized = true;
+            this.isConnectedBrowser = false; // Mark as launched (not connected)
+            console.log('Successfully launched new browser');
         } catch (error) {
+            // If browser is already running error, provide helpful message
+            if (error.message.includes('already running')) {
+                throw new Error('Browser session is locked by another process. Please close all Chrome/Edge windows and try again, or restart VSCode.');
+            }
             throw new Error(`Failed to launch browser: ${error.message}. Make sure Chromium is installed.`);
         }
     }
@@ -256,14 +331,24 @@ class ClaudeUsageScraper {
     }
 
     /**
-     * Close the browser instance
+     * Close/disconnect from the browser instance
+     * Only closes the browser if we launched it; disconnects if we connected to existing
      */
     async close() {
         if (this.browser) {
-            await this.browser.close();
+            if (this.isConnectedBrowser) {
+                // We connected to an existing browser, just disconnect
+                await this.browser.disconnect();
+                console.log('Disconnected from shared browser');
+            } else {
+                // We launched this browser, close it completely
+                await this.browser.close();
+                console.log('Closed browser instance');
+            }
             this.browser = null;
             this.page = null;
             this.isInitialized = false;
+            this.isConnectedBrowser = false;
         }
     }
 }

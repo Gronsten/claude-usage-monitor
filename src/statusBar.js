@@ -23,7 +23,7 @@ function createStatusBarItem(context) {
 /**
  * Update the status bar with usage data
  * @param {vscode.StatusBarItem} item
- * @param {Object} usageData
+ * @param {Object} usageData - Optional Claude.ai usage data (may be null if web scraping fails)
  * @param {number} usageData.usagePercent
  * @param {string} usageData.resetTime
  * @param {Date} usageData.timestamp
@@ -31,11 +31,17 @@ function createStatusBarItem(context) {
  * @param {Object} sessionData - Optional session token usage data
  */
 function updateStatusBar(item, usageData, activityStats = null, sessionData = null) {
-    if (!usageData) {
+    // If neither usageData nor sessionData is available, show default message
+    if (!usageData && !sessionData) {
         item.text = '$(cloud) Claude Usage';
         item.tooltip = 'Click to fetch Claude usage data';
         return;
     }
+
+    // Calculate token percentage if session data available
+    const tokenPercent = (sessionData && sessionData.tokenUsage)
+        ? Math.round((sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100)
+        : null;
 
     // Choose icon and color based on activity level (max usage)
     let icon = '$(check)';
@@ -62,7 +68,7 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
                 color = new vscode.ThemeColor('testing.iconPassed');
                 break;
         }
-    } else {
+    } else if (usageData) {
         // Fallback to Claude.ai usage if no activity stats available
         if (usageData.usagePercent >= 90) {
             icon = '$(error)';
@@ -74,31 +80,55 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
             icon = '$(check)';
             color = new vscode.ThemeColor('testing.iconPassed');
         }
+    } else if (tokenPercent !== null) {
+        // Use token percentage for icon/color if Claude.ai data unavailable
+        if (tokenPercent >= 90) {
+            icon = '$(error)';
+            color = new vscode.ThemeColor('errorForeground');
+        } else if (tokenPercent >= 80) {
+            icon = '$(warning)';
+            color = new vscode.ThemeColor('editorWarning.foreground');
+        } else {
+            icon = '$(check)';
+            color = new vscode.ThemeColor('testing.iconPassed');
+        }
     }
 
-    // Build status bar text with both usage percentages
-    let statusText = `${icon} Claude: ${usageData.usagePercent}%`;
+    // Build status bar text - show what's available
+    let statusText = icon;
+    const statusParts = [];
 
-    if (sessionData && sessionData.tokenUsage) {
-        const tokenPercent = Math.round((sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100);
-        statusText += ` | Tokens: ${tokenPercent}%`;
+    if (usageData) {
+        statusParts.push(`Claude: ${usageData.usagePercent}%`);
     }
+
+    if (tokenPercent !== null) {
+        statusParts.push(`Tokens: ${tokenPercent}%`);
+    }
+
+    statusText += ' ' + statusParts.join(' | ');
 
     item.text = statusText;
     item.color = color;
 
     // Create detailed tooltip
-    const tooltipLines = [
-        `Claude.ai Usage: ${usageData.usagePercent}%`,
-        `Resets in: ${usageData.resetTime}`,
-        `Last updated: ${usageData.timestamp.toLocaleTimeString()}`
-    ];
+    const tooltipLines = [];
+
+    // Add Claude.ai usage if available
+    if (usageData) {
+        tooltipLines.push(`**Claude.ai Usage: ${usageData.usagePercent}%**`);
+        tooltipLines.push(`Resets in: ${usageData.resetTime}`);
+        tooltipLines.push(`Last updated: ${usageData.timestamp.toLocaleTimeString()}`);
+    } else {
+        // If web scraping failed, show a message
+        tooltipLines.push('**Claude.ai Usage: Unavailable**');
+        tooltipLines.push('(Web scraping failed - check connection)');
+    }
 
     // Add session token usage if available
     if (sessionData && sessionData.tokenUsage) {
-        const tokenPercent = Math.round((sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100);
         tooltipLines.push('');
-        tooltipLines.push(`Session Tokens: ${sessionData.tokenUsage.current.toLocaleString()} / ${sessionData.tokenUsage.limit.toLocaleString()} (${tokenPercent}%)`);
+        tooltipLines.push(`**Session Tokens: ${sessionData.tokenUsage.current.toLocaleString()} / ${sessionData.tokenUsage.limit.toLocaleString()} (${tokenPercent}%)**`);
         tooltipLines.push(`Session: ${sessionData.sessionId}`);
     }
 
@@ -113,7 +143,9 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     tooltipLines.push('');
     tooltipLines.push('Click to refresh');
 
-    item.tooltip = tooltipLines.join('\n');
+    // Use MarkdownString for bold formatting
+    const markdown = new vscode.MarkdownString(tooltipLines.join('  \n'));
+    item.tooltip = markdown;
 }
 
 module.exports = {

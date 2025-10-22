@@ -2,6 +2,19 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.0.1] - 2025-10-22
+
+### Fixed
+- **Resilient Data Fetching**: Extension no longer fails completely if web scraping fails
+  - Web scraping (Claude.ai usage) and session token data (from `session-data.json`) are now handled independently
+  - If web scraping fails, session token data is still displayed in status bar
+  - Shows warning message when web scraping fails, but extension remains functional
+  - Status bar tooltip indicates when Claude.ai data is unavailable
+
+### Changed
+- Improved error handling in data provider to gracefully degrade when web scraping encounters issues
+- Status bar now intelligently shows available data even when one source fails
+
 ## [2.0.0] - 2025-10-21
 
 ### Major Changes
