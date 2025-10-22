@@ -141,7 +141,13 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     }
 
     tooltipLines.push('');
-    tooltipLines.push('Click to refresh');
+
+    // Get version from package.json
+    const packageJson = require('../package.json');
+    const version = packageJson.version;
+
+    // Add footer with click instruction and version
+    tooltipLines.push(`Click to refresh | v${version}`);
 
     // Use MarkdownString for bold formatting
     const markdown = new vscode.MarkdownString(tooltipLines.join('  \n'));

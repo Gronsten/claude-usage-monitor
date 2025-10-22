@@ -61,27 +61,34 @@ Claude Code conversations and VS Code extension lifecycles are different:
 
 ### Starting a New Session
 
-**At the beginning of each NEW Claude Code conversation**, run:
+**At the beginning of each NEW Claude Code conversation**, use the VS Code command:
 
-```bash
-# In the extension's directory
-cd "c:\Users\mark.campbell3\OneDrive - Chick-fil-A, Inc\Desktop\!_WORKING\vscode-extensions\claude-usage"
-node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().startSession('Your session description').then(s=>console.log('Started:',s.sessionId))"
-```
-
-Or use the VS Code command: **"Claude: Start New Claude Code Session"**
+**"Claude: Start New Claude Code Session"** (Ctrl+Shift+P)
 
 This creates a new session with tokens starting at 0.
 
+**Advanced: Command Line (optional)**
+```bash
+# Can run from any directory - session file is in OS temp directory
+node -e "const os=require('os');const path=require('path');const {SessionTracker}=require(path.join(os.tmpdir(),'..','vscode','extensions','gronsten.claude-session-usage-*','src','sessionTracker'));new SessionTracker().startSession('Your session description').then(s=>console.log('Started:',s.sessionId))"
+```
+
 ### IMPORTANT: Update After Every Response
 
-**You MUST update the session-data.json file after EVERY response that includes tool calls.**
+**You MUST update the claude-session-data.json file after EVERY response that includes tool calls.**
 
-Look for the `<system_warning>Token usage: X/200000` message and use that number to update the session file:
+Look for the `<system_warning>Token usage: X/200000` message and use that number to update the session file.
 
+The session file is stored in your OS temp directory:
+- **Windows**: `C:\Users\username\AppData\Local\Temp\claude-session-data.json`
+- **Mac/Linux**: `/tmp/claude-session-data.json`
+
+**Update Command (works from any directory):**
 ```bash
-node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().updateTokens(CURRENT_TOKENS,200000)"
+node -e "const os=require('os');const path=require('path');const fs=require('fs');const file=path.join(os.tmpdir(),'claude-session-data.json');const data=JSON.parse(fs.readFileSync(file));data.sessions[data.sessions.length-1].tokenUsage.current=CURRENT_TOKENS;data.sessions[data.sessions.length-1].tokenUsage.remaining=200000-CURRENT_TOKENS;data.sessions[data.sessions.length-1].tokenUsage.lastUpdate=new Date().toISOString();data.totals.totalTokensUsed=data.sessions.reduce((sum,s)=>sum+(s.tokenUsage.current||0),0);fs.writeFileSync(file,JSON.stringify(data,null,2))"
 ```
+
+Replace `CURRENT_TOKENS` with the actual number from the system warning.
 
 ### Example Workflow
 

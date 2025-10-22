@@ -2,6 +2,29 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.1.0] - 2025-10-22
+
+### Changed
+- **Session Data Location**: Moved session-data.json to OS temp directory
+  - **Windows**: `C:\Users\username\AppData\Local\Temp\claude-session-data.json`
+  - **Mac/Linux**: `/tmp/claude-session-data.json`
+  - Works consistently across all extension installation methods (dev, .vsix, marketplace)
+  - Same file accessible regardless of where extension is installed
+  - Cross-platform compatible
+
+### Added
+- Version number now displayed in status bar tooltip (e.g., "Click to refresh | v2.1.0")
+- Helps confirm which extension version is running
+
+### Documentation
+- Updated CLAUDE.md with simplified token update command that works from any directory
+- Clarified session file location in OS temp directory
+
+## [2.0.3] - 2025-10-22
+
+### Added
+- Version number in status bar tooltip
+
 ## [2.0.2] - 2025-10-22
 
 ### Changed
