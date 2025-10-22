@@ -1,13 +1,19 @@
 const fs = require('fs').promises;
 const path = require('path');
+const os = require('os');
 
 /**
  * Simple session tracker for Claude Code development sessions
  * Tracks token usage and activities in session-data.json
+ *
+ * File is stored in OS temp directory for easy access across extension installations:
+ * - Windows: C:\Users\username\AppData\Local\Temp\claude-session-data.json
+ * - Mac/Linux: /tmp/claude-session-data.json
  */
 class SessionTracker {
     constructor(sessionFilePath) {
-        this.sessionFilePath = sessionFilePath || path.join(__dirname, '..', 'session-data.json');
+        // Store in OS temp directory so it's accessible regardless of where extension is installed
+        this.sessionFilePath = sessionFilePath || path.join(os.tmpdir(), 'claude-session-data.json');
         this.currentSession = null;
     }
 
