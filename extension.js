@@ -60,6 +60,37 @@ async function activate(context) {
         })
     );
 
+    context.subscriptions.push(
+        vscode.commands.registerCommand('claude-usage.startNewSession', async () => {
+            try {
+                // Prompt user for optional session description
+                const description = await vscode.window.showInputBox({
+                    prompt: 'Enter a description for this Claude Code session (optional)',
+                    placeHolder: 'e.g., Implementing user authentication feature',
+                    value: 'Claude Code development session'
+                });
+
+                // User cancelled the input
+                if (description === undefined) {
+                    return;
+                }
+
+                // Start new session
+                const newSession = await sessionTracker.startSession(description);
+
+                // Update status bar to show new session
+                await updateStatusBarWithAllData();
+
+                vscode.window.showInformationMessage(
+                    `✅ New session started: ${newSession.sessionId}`,
+                    { modal: false }
+                );
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to start new session: ${error.message}`);
+            }
+        })
+    );
+
     // Get configuration
     const config = vscode.workspace.getConfiguration('claudeUsage');
 
@@ -122,15 +153,6 @@ async function activate(context) {
 }
 
 async function deactivate() {
-    // Reset session tokens to zero for fresh start on next activation
-    if (sessionTracker) {
-        try {
-            await sessionTracker.resetSessionTokens();
-        } catch (error) {
-            console.error('Error resetting session tokens:', error);
-        }
-    }
-
     // Clean up timer
     if (autoRefreshTimer) {
         clearInterval(autoRefreshTimer);

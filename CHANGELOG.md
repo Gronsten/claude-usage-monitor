@@ -2,6 +2,30 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.0.2] - 2025-10-22
+
+### Changed
+- **Session Lifecycle Improvement**: Removed automatic token reset on extension deactivation
+  - Sessions now persist across extension reloads and VS Code restarts
+  - Session tracking aligns with Claude Code conversation lifecycle (not extension lifecycle)
+  - Users manually start new sessions when beginning new Claude Code conversations
+
+### Added
+- **New Command**: "Claude: Start New Claude Code Session"
+  - Prompts for optional session description
+  - Resets token count to 0 for new conversation tracking
+  - Creates new session entry in session-data.json
+
+### Removed
+- Auto-reset of session tokens in `deactivate()` function
+  - Previous behavior: tokens reset to 0 every time extension reloaded
+  - New behavior: tokens persist until user manually starts new session
+
+### Documentation
+- Updated CLAUDE.md with detailed session lifecycle explanation
+- Added workflow examples for starting new sessions vs continuing existing ones
+- Clarified when to start new sessions vs when to update tokens
+
 ## [2.0.1] - 2025-10-22
 
 ### Fixed
