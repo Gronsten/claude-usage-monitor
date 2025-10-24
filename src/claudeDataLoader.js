@@ -233,121 +233,131 @@ class ClaudeDataLoader {
 
     /**
      * Get current session usage from recently modified JSONL files
-     * Filters to JSONL files modified in last 5 minutes to get active conversation
+     * Strategy: Find the most recently modified JSONL file and extract
+     * cache_creation + cache_read from the last assistant message.
+     * This represents the total prompt cache size = current session context.
      * @returns {Promise<object>} Current session usage data
      */
     async getCurrentSessionUsage() {
-        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        console.log('🔍 getCurrentSessionUsage() - extracting cache size from most recent message');
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         const dataDir = await this.findClaudeDataDirectory();
 
         if (!dataDir) {
+            console.log('❌ Claude data directory not found');
             return {
                 totalTokens: 0,
                 inputTokens: 0,
                 outputTokens: 0,
                 cacheCreationTokens: 0,
                 cacheReadTokens: 0,
-                messageCount: 0,
-                records: []
+                messageCount: 0
             };
         }
 
         try {
             // Find ALL JSONL files recursively
             const allJsonlFiles = await this.findJsonlFiles(dataDir);
+            console.log(`📁 Found ${allJsonlFiles.length} total JSONL files`);
 
             // Filter to files modified in last 5 minutes (active conversation)
             const recentFiles = [];
             for (const filePath of allJsonlFiles) {
                 try {
                     const stats = await fs.stat(filePath);
-                    const modifiedTime = stats.mtimeMs;
-
-                    if (modifiedTime >= fiveMinutesAgo) {
-                        recentFiles.push(filePath);
+                    if (stats.mtimeMs >= fiveMinutesAgo) {
+                        recentFiles.push({
+                            path: filePath,
+                            modified: stats.mtimeMs
+                        });
                     }
                 } catch (statError) {
-                    // Skip files that can't be stat'd
                     continue;
                 }
             }
 
-            console.log(`Found ${recentFiles.length} JSONL files modified in last 5 minutes (out of ${allJsonlFiles.length} total)`);
+            // Sort by modification time (most recent first)
+            recentFiles.sort((a, b) => b.modified - a.modified);
+
+            console.log(`⏱️  Found ${recentFiles.length} file(s) modified in last 5 minutes`);
 
             if (recentFiles.length === 0) {
-                console.log('No recently modified JSONL files - conversation may be inactive');
+                console.log('⚠️  No recently modified files - conversation may be inactive');
                 return {
                     totalTokens: 0,
                     inputTokens: 0,
                     outputTokens: 0,
                     cacheCreationTokens: 0,
                     cacheReadTokens: 0,
-                    messageCount: 0,
-                    records: []
+                    messageCount: 0
                 };
             }
 
-            // Parse only recently modified files
-            const allRecords = [];
-            for (const filePath of recentFiles) {
-                const records = await this.parseJsonlFile(filePath);
-                allRecords.push(...records);
-            }
+            // Read the most recently modified file
+            const mostRecentFile = recentFiles[0].path;
+            console.log(`📄 Reading: ${path.basename(mostRecentFile)}`);
 
-            // Filter by record timestamp (last hour)
-            const filteredRecords = allRecords.filter(record => {
-                const recordTime = new Date(record.timestamp).getTime();
-                return recordTime >= oneHourAgo;
-            });
+            const content = await fs.readFile(mostRecentFile, 'utf-8');
+            const lines = content.trim().split('\n');
+            console.log(`📊 File has ${lines.length} lines`);
 
-            // Deduplicate records
-            const uniqueRecords = [];
-            const seenHashes = new Set();
-            for (const record of filteredRecords) {
-                const hash = this.getRecordHash(record);
-                if (!seenHashes.has(hash)) {
-                    seenHashes.add(hash);
-                    uniqueRecords.push(record);
+            // Parse from END to START to find the last assistant message with usage data
+            let sessionTokens = 0;
+            let cacheCreation = 0;
+            let cacheRead = 0;
+            let messageCount = 0;
+
+            for (let i = lines.length - 1; i >= 0; i--) {
+                try {
+                    const entry = JSON.parse(lines[i]);
+
+                    // Look for assistant messages with cache data
+                    if (entry.type === 'assistant' && entry.message?.usage) {
+                        const usage = entry.message.usage;
+                        const entryCache = (usage.cache_creation_input_tokens || 0) +
+                                          (usage.cache_read_input_tokens || 0);
+
+                        if (entryCache > 0) {
+                            // Found the most recent message with cache data
+                            // Use only cache_read as the session total (more accurate approximation)
+                            cacheCreation = usage.cache_creation_input_tokens || 0;
+                            cacheRead = usage.cache_read_input_tokens || 0;
+                            sessionTokens = cacheRead; // Changed from: cacheCreation + cacheRead
+                            messageCount = lines.length;
+
+                            console.log(`✅ Found session usage from last assistant message:`);
+                            console.log(`   Cache creation: ${cacheCreation.toLocaleString()}`);
+                            console.log(`   Cache read: ${cacheRead.toLocaleString()}`);
+                            console.log(`   Session total (using cache_read only): ${sessionTokens.toLocaleString()} tokens`);
+                            console.log(`   Percentage: ${((sessionTokens / 200000) * 100).toFixed(2)}%`);
+
+                            break;
+                        }
+                    }
+                } catch (parseError) {
+                    // Skip malformed lines
+                    continue;
                 }
             }
 
-            // Aggregate token counts
-            let totalInputTokens = 0;
-            let totalOutputTokens = 0;
-            let totalCacheCreationTokens = 0;
-            let totalCacheReadTokens = 0;
-
-            for (const record of uniqueRecords) {
-                const usage = record.message.usage;
-                totalInputTokens += usage.input_tokens || 0;
-                totalOutputTokens += usage.output_tokens || 0;
-                totalCacheCreationTokens += usage.cache_creation_input_tokens || 0;
-                totalCacheReadTokens += usage.cache_read_input_tokens || 0;
-            }
-
-            const totalTokens = totalInputTokens + totalOutputTokens +
-                               totalCacheCreationTokens + totalCacheReadTokens;
-
             return {
-                totalTokens,
-                inputTokens: totalInputTokens,
-                outputTokens: totalOutputTokens,
-                cacheCreationTokens: totalCacheCreationTokens,
-                cacheReadTokens: totalCacheReadTokens,
-                messageCount: uniqueRecords.length,
-                records: uniqueRecords
+                totalTokens: sessionTokens,
+                inputTokens: 0,  // Not tracking per-message input for session total
+                outputTokens: 0, // Not tracking per-message output for session total
+                cacheCreationTokens: cacheCreation,
+                cacheReadTokens: cacheRead,
+                messageCount: messageCount
             };
+
         } catch (error) {
-            console.error(`Error getting current session usage: ${error.message}`);
+            console.error(`❌ Error getting current session usage: ${error.message}`);
             return {
                 totalTokens: 0,
                 inputTokens: 0,
                 outputTokens: 0,
                 cacheCreationTokens: 0,
                 cacheReadTokens: 0,
-                messageCount: 0,
-                records: []
+                messageCount: 0
             };
         }
     }
