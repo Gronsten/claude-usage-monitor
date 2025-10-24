@@ -39,6 +39,11 @@
         "command": "claude-usage.startNewSession",
         "title": "Start New Claude Code Session",
         "category": "Claude"
+      },
+      {
+        "command": "claude-usage.updateTokens",
+        "title": "Update Token Usage (Manual Test)",
+        "category": "Claude"
       }
     ],
     "viewsContainers": {
