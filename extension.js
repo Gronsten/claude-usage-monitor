@@ -3,12 +3,133 @@ const { UsageDataProvider } = require('./src/dataProvider');
 const { createStatusBarItem, updateStatusBar } = require('./src/statusBar');
 const { ActivityMonitor } = require('./src/activityMonitor');
 const { SessionTracker } = require('./src/sessionTracker');
+const { ClaudeDataLoader } = require('./src/claudeDataLoader');
 
 let statusBarItem;
 let dataProvider;
 let autoRefreshTimer;
 let activityMonitor;
 let sessionTracker;
+let claudeDataLoader;
+let jsonlWatcher;
+
+/**
+ * Set up monitoring for Claude Code token usage via JSONL files
+ * Monitors ~/.config/claude/projects/*.jsonl for usage data
+ * @param {vscode.ExtensionContext} context
+ */
+async function setupTokenMonitoring(context) {
+    console.log('📊 Setting up Claude Code JSONL token monitoring...');
+
+    // Create a diagnostic output channel for monitoring
+    const diagnosticChannel = vscode.window.createOutputChannel('Claude Usage - Token Monitor');
+    context.subscriptions.push(diagnosticChannel);
+
+    // Initialize the Claude data loader
+    claudeDataLoader = new ClaudeDataLoader();
+
+    // Try to find Claude data directory
+    const claudeDir = await claudeDataLoader.findClaudeDataDirectory();
+    if (!claudeDir) {
+        diagnosticChannel.appendLine('⚠️ Claude data directory not found');
+        diagnosticChannel.appendLine('Checked locations:');
+        claudeDataLoader.claudeConfigPaths.forEach(p => {
+            diagnosticChannel.appendLine(`  - ${p}`);
+        });
+        diagnosticChannel.appendLine('Token monitoring will not be available.');
+        return;
+    }
+
+    diagnosticChannel.appendLine(`✅ Found Claude data directory: ${claudeDir}`);
+
+    // Initial load of usage data
+    await updateTokensFromJsonl(diagnosticChannel);
+
+    // Set up file watcher for JSONL directory
+    const fs = require('fs');
+    if (fs.existsSync(claudeDir)) {
+        jsonlWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(claudeDir, '**/*.jsonl')
+        );
+
+        // Watch for file changes
+        jsonlWatcher.onDidChange(async () => {
+            diagnosticChannel.appendLine('📝 JSONL file changed, updating tokens...');
+            await updateTokensFromJsonl(diagnosticChannel);
+        });
+
+        // Watch for new files
+        jsonlWatcher.onDidCreate(async () => {
+            diagnosticChannel.appendLine('📝 New JSONL file created, updating tokens...');
+            await updateTokensFromJsonl(diagnosticChannel);
+        });
+
+        context.subscriptions.push(jsonlWatcher);
+        diagnosticChannel.appendLine('✅ File watcher active for JSONL changes');
+    }
+
+    // Also poll every 30 seconds for safety (in case file watcher misses events)
+    const pollInterval = setInterval(async () => {
+        await updateTokensFromJsonl(diagnosticChannel, true); // Silent mode
+    }, 30000);
+
+    context.subscriptions.push({
+        dispose: () => clearInterval(pollInterval)
+    });
+
+    diagnosticChannel.appendLine('✅ Token monitoring initialized');
+    diagnosticChannel.appendLine(`   Polling interval: 30 seconds`);
+    diagnosticChannel.appendLine(`   Watching: ${claudeDir}/**/*.jsonl`);
+}
+
+/**
+ * Update token usage from JSONL data
+ * @param {vscode.OutputChannel} diagnosticChannel
+ * @param {boolean} silent - If true, don't log every update
+ */
+async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
+    try {
+        // Get current session usage (last hour)
+        const usage = await claudeDataLoader.getCurrentSessionUsage();
+
+        if (!silent) {
+            diagnosticChannel.appendLine(`📊 Current session: ${usage.totalTokens} tokens (${usage.messageCount} messages)`);
+            diagnosticChannel.appendLine(`   Input: ${usage.inputTokens}, Output: ${usage.outputTokens}`);
+            if (usage.cacheReadTokens > 0) {
+                diagnosticChannel.appendLine(`   Cache read: ${usage.cacheReadTokens}, Cache creation: ${usage.cacheCreationTokens}`);
+            }
+        }
+
+        // Update session tracker with total tokens
+        if (sessionTracker && usage.totalTokens > 0) {
+            // Ensure a session exists
+            let currentSession = await sessionTracker.getCurrentSession();
+            if (!currentSession) {
+                // Auto-create a session if none exists
+                currentSession = await sessionTracker.startSession('Claude Code session (auto-created)');
+                if (!silent) {
+                    diagnosticChannel.appendLine(`✨ Created new session: ${currentSession.sessionId}`);
+                }
+            }
+
+            await sessionTracker.updateTokens(usage.totalTokens, 200000); // 200k limit
+
+            // Update status bar and tree view
+            if (statusBarItem) {
+                const sessionData = await sessionTracker.getCurrentSession();
+                const activityStats = activityMonitor ? activityMonitor.getStats(dataProvider?.usageData, sessionData) : null;
+                updateStatusBar(statusBarItem, dataProvider?.usageData, activityStats, sessionData);
+
+                // Update tree view with session data
+                if (dataProvider) {
+                    dataProvider.updateSessionData(sessionData);
+                }
+            }
+        }
+    } catch (error) {
+        diagnosticChannel.appendLine(`❌ Error updating tokens: ${error.message}`);
+    }
+}
 
 /**
  * @param {vscode.ExtensionContext} context
@@ -29,11 +150,19 @@ async function activate(context) {
     // Initialize session tracker
     sessionTracker = new SessionTracker();
 
-    // Helper function to update status bar with all data
+    // Monitor for Claude Code token usage updates via JSONL files
+    await setupTokenMonitoring(context);
+
+    // Helper function to update status bar and tree view with all data
     async function updateStatusBarWithAllData() {
         const sessionData = sessionTracker ? await sessionTracker.getCurrentSession() : null;
         const activityStats = activityMonitor ? activityMonitor.getStats(dataProvider.usageData, sessionData) : null;
         updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
+
+        // Update tree view with session data
+        if (sessionData) {
+            dataProvider.updateSessionData(sessionData);
+        }
     }
 
     // Register tree data provider

@@ -1,13 +1,26 @@
 const vscode = require('vscode');
 const { ClaudeUsageScraper } = require('./scraper');
+const { UsageHistory } = require('./usageHistory');
+const { calculateResetClockTime } = require('./utils');
 
 class UsageDataProvider {
     constructor() {
         this._onDidChangeTreeData = new vscode.EventEmitter();
         this.onDidChangeTreeData = this._onDidChangeTreeData.event;
         this.usageData = null;
+        this.sessionData = null;
         this.scraper = new ClaudeUsageScraper();
+        this.usageHistory = new UsageHistory();
         this.isFirstFetch = true;
+    }
+
+    /**
+     * Update session data and refresh tree view
+     * @param {Object} sessionData - Session data from SessionTracker
+     */
+    updateSessionData(sessionData) {
+        this.sessionData = sessionData;
+        this.refresh();
     }
 
     /**
@@ -64,44 +77,51 @@ class UsageDataProvider {
                 `${this.usageData.usagePercent}%`,
                 vscode.TreeItemCollapsibleState.None,
                 usageLevel
-            ),
-            new UsageTreeItem(
-                'Resets in',
-                this.usageData.resetTime,
-                vscode.TreeItemCollapsibleState.None,
-                'time'
             )
         ];
 
-        // Add weekly data if available (from API response)
-        if (this.usageData.usagePercentWeek !== undefined) {
-            // Determine usage level for weekly usage
-            let weeklyUsageLevel = 'normal';
-            if (this.usageData.usagePercentWeek >= 90) {
-                weeklyUsageLevel = 'critical';
-            } else if (this.usageData.usagePercentWeek >= 80) {
-                weeklyUsageLevel = 'warning';
+        // Add sparkline for 5-hour usage history
+        const fiveHourSparkline = await this.usageHistory.getFiveHourSparkline(8);
+        items.push(
+            new UsageTreeItem(
+                '  ',
+                fiveHourSparkline,
+                vscode.TreeItemCollapsibleState.None,
+                'graph'
+            )
+        );
+
+        // Calculate reset time in real clock format (24-hour)
+        const resetClockTime = calculateResetClockTime(this.usageData.resetTime);
+        items.push(
+            new UsageTreeItem(
+                'Resets in',
+                `${this.usageData.resetTime} (${resetClockTime})`,
+                vscode.TreeItemCollapsibleState.None,
+                'time'
+            )
+        );
+
+        // Add session token usage if available
+        if (this.sessionData && this.sessionData.tokenUsage) {
+            const tokenPercent = Math.round((this.sessionData.tokenUsage.current / this.sessionData.tokenUsage.limit) * 100);
+
+            // Determine token usage level for icon
+            let tokenUsageLevel = 'normal';
+            if (tokenPercent >= 90) {
+                tokenUsageLevel = 'critical';
+            } else if (tokenPercent >= 80) {
+                tokenUsageLevel = 'warning';
             }
 
             items.push(
                 new UsageTreeItem(
-                    'Usage (7-day)',
-                    `${this.usageData.usagePercentWeek}%`,
+                    'Session Tokens',
+                    `~${this.sessionData.tokenUsage.current.toLocaleString()} / ${this.sessionData.tokenUsage.limit.toLocaleString()} (~${tokenPercent}%)`,
                     vscode.TreeItemCollapsibleState.None,
-                    weeklyUsageLevel
+                    tokenUsageLevel
                 )
             );
-
-            if (this.usageData.resetTimeWeek) {
-                items.push(
-                    new UsageTreeItem(
-                        'Weekly resets in',
-                        this.usageData.resetTimeWeek,
-                        vscode.TreeItemCollapsibleState.None,
-                        'time'
-                    )
-                );
-            }
         }
 
         items.push(
@@ -158,6 +178,11 @@ class UsageDataProvider {
                     // Fetch usage data from web scrape
                     this.usageData = await this.scraper.fetchUsageData();
 
+                    // Save data point to history for sparkline generation
+                    if (this.usageData) {
+                        await this.usageHistory.addDataPoint(this.usageData.usagePercent);
+                    }
+
                     progress.report({ increment: 100, message: 'Complete!' });
 
                 } catch (error) {
@@ -185,15 +210,9 @@ class UsageDataProvider {
                     // Show success message with data source indicator
                     const usageIcon = this.usageData.usagePercent >= 80 ? '⚠️' : '✅';
                     const dataSource = this.usageData.rawData ? '🚀 API' : '📄 HTML';
+                    const resetClockTime = calculateResetClockTime(this.usageData.resetTime);
 
-                    let message = `${usageIcon} Claude Usage: ${this.usageData.usagePercent}% | Resets in: ${this.usageData.resetTime}`;
-
-                    // Add 7-day usage if available (from API)
-                    if (this.usageData.usagePercentWeek !== undefined) {
-                        message += ` | Weekly: ${this.usageData.usagePercentWeek}%`;
-                    }
-
-                    message += ` (${dataSource})`;
+                    const message = `${usageIcon} Claude Usage: ${this.usageData.usagePercent}% | Resets: ${this.usageData.resetTime} (${resetClockTime}) | ${dataSource}`;
 
                     vscode.window.showInformationMessage(message);
                 }
@@ -246,6 +265,9 @@ class UsageTreeItem extends vscode.TreeItem {
                 break;
             case 'clock':
                 this.iconPath = new vscode.ThemeIcon('history');
+                break;
+            case 'graph':
+                this.iconPath = new vscode.ThemeIcon('graph-line');
                 break;
             case 'info':
             default:

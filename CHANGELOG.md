@@ -2,6 +2,48 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.3.0] - 2025-10-24
+
+### Added
+- **Automatic Claude Code Token Tracking** 📊: Real-time monitoring of Claude Code session usage
+  - Monitors `~/.claude/projects/*.jsonl` files for token usage data
+  - File watcher detects changes instantly when you use Claude Code
+  - 30-second polling backup ensures reliability
+  - Tracks input, output, cache read, and cache creation tokens
+  - Shows current session usage (last hour) in status bar tooltip
+  - Detailed breakdown in "Claude Usage - Token Monitor" output channel
+- **ASCII Sparkline Graphs** ✨: Visual usage trends in tree view
+  - Last 8 data points displayed as sparkline (e.g., "▁▂▃▅▆▇█▇")
+  - Separate sparklines for 5-hour and 7-day usage
+  - Stored in `claude-usage-history.json` for persistence
+  - Updates every 5 minutes with new data points
+  - Maximum 24 data points retained (2 hours of history)
+- **Usage History Tracking**: New UsageHistory class for historical data management
+  - Stores usage snapshots with timestamps
+  - Generates sparklines using block character visualization
+  - Normalizes values for accurate trend display
+  - Automatic cleanup of old data points
+
+### Changed
+- Replaced experimental console interception with proven JSONL file monitoring
+- Removed proposed API usage that caused activation failures
+- Enhanced diagnostic logging to "Claude Usage - Token Monitor" output channel
+- Token monitoring now fully automatic - no manual updates needed
+
+### Technical Details
+- New file: `src/claudeDataLoader.js` - Handles JSONL parsing and data aggregation
+- New file: `src/usageHistory.js` - Manages historical usage data and sparklines
+- Enhanced `extension.js` with `setupTokenMonitoring()` and `updateTokensFromJsonl()`
+- File watcher uses `vscode.workspace.createFileSystemWatcher()` for real-time updates
+- JSONL parser supports deduplication by message ID + request ID
+- Compatible with both `~/.claude/projects` and `~/.config/claude/projects` paths
+
+### Performance
+- **Real-time Updates**: Instant token tracking as you use Claude Code
+- **Minimal I/O**: 1-minute caching and efficient file watching
+- **Lightweight**: JSONL parsing with native Node.js streams
+- **Reliable**: Dual monitoring (file watcher + polling) ensures no missed updates
+
 ## [2.2.0] - 2025-10-24
 
 ### Added
