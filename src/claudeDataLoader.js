@@ -57,6 +57,32 @@ class ClaudeDataLoader {
     }
 
     /**
+     * Get the current project directory from VS Code workspace
+     * @returns {string|null} Current project subdirectory name or null
+     */
+    getCurrentProjectDir() {
+        const vscode = require('vscode');
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return null;
+        }
+
+        // Get the workspace path and convert to Claude's format
+        // Claude stores projects as: ~/.claude/projects/c--path-to-project
+        const workspacePath = workspaceFolders[0].uri.fsPath;
+
+        // Convert path to Claude's format (replace separators with --)
+        // e.g., "c:\AppInstall\dev\project" -> "c--AppInstall-dev-project"
+        const claudeProjectName = workspacePath
+            .replace(/\\/g, '-')  // Replace backslashes with dash
+            .replace(/\//g, '-')  // Replace forward slashes with dash
+            .replace(/:/g, '--'); // Replace colons with double dash
+
+        return claudeProjectName;
+    }
+
+    /**
      * Recursively find all JSONL files in a directory
      * @param {string} dirPath - Directory to search
      * @returns {Promise<string[]>} Array of JSONL file paths
@@ -232,12 +258,118 @@ class ClaudeDataLoader {
     }
 
     /**
-     * Get current session usage (last hour)
+     * Get current session usage (last hour) for current project only
      * @returns {Promise<object>} Current session usage data
      */
     async getCurrentSessionUsage() {
         const oneHourAgo = Date.now() - (60 * 60 * 1000);
-        return await this.loadUsageRecords(oneHourAgo);
+        const dataDir = await this.findClaudeDataDirectory();
+
+        if (!dataDir) {
+            return {
+                totalTokens: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreationTokens: 0,
+                cacheReadTokens: 0,
+                messageCount: 0,
+                records: []
+            };
+        }
+
+        // Get current project directory name
+        const currentProject = this.getCurrentProjectDir();
+
+        if (!currentProject) {
+            console.warn('No workspace folder detected - cannot filter to current project');
+            // Fallback to all records if no workspace
+            return await this.loadUsageRecords(oneHourAgo);
+        }
+
+        // Only search in the current project's subdirectory
+        const projectDir = path.join(dataDir, currentProject);
+        const fs = require('fs');
+
+        try {
+            // Check if project directory exists
+            if (!fs.existsSync(projectDir)) {
+                console.log(`Project directory not found: ${projectDir}`);
+                return {
+                    totalTokens: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheCreationTokens: 0,
+                    cacheReadTokens: 0,
+                    messageCount: 0,
+                    records: []
+                };
+            }
+
+            // Find JSONL files only in current project directory
+            const jsonlFiles = await this.findJsonlFiles(projectDir);
+            console.log(`Found ${jsonlFiles.length} JSONL files in current project: ${currentProject}`);
+
+            const allRecords = [];
+            for (const filePath of jsonlFiles) {
+                const records = await this.parseJsonlFile(filePath);
+                allRecords.push(...records);
+            }
+
+            // Filter by timestamp (last hour)
+            const filteredRecords = allRecords.filter(record => {
+                const recordTime = new Date(record.timestamp).getTime();
+                return recordTime >= oneHourAgo;
+            });
+
+            // Deduplicate records
+            const uniqueRecords = [];
+            const seenHashes = new Set();
+            for (const record of filteredRecords) {
+                const hash = this.getRecordHash(record);
+                if (!seenHashes.has(hash)) {
+                    seenHashes.add(hash);
+                    uniqueRecords.push(record);
+                }
+            }
+
+            // Aggregate token counts
+            let totalInputTokens = 0;
+            let totalOutputTokens = 0;
+            let totalCacheCreationTokens = 0;
+            let totalCacheReadTokens = 0;
+
+            for (const record of uniqueRecords) {
+                const usage = record.message.usage;
+                totalInputTokens += usage.input_tokens || 0;
+                totalOutputTokens += usage.output_tokens || 0;
+                totalCacheCreationTokens += usage.cache_creation_input_tokens || 0;
+                totalCacheReadTokens += usage.cache_read_input_tokens || 0;
+            }
+
+            const totalTokens = totalInputTokens + totalOutputTokens +
+                               totalCacheCreationTokens + totalCacheReadTokens;
+
+            return {
+                totalTokens,
+                inputTokens: totalInputTokens,
+                outputTokens: totalOutputTokens,
+                cacheCreationTokens: totalCacheCreationTokens,
+                cacheReadTokens: totalCacheReadTokens,
+                messageCount: uniqueRecords.length,
+                records: uniqueRecords
+            };
+        } catch (error) {
+            console.error(`Error getting current session usage: ${error.message}`);
+            return {
+                totalTokens: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreationTokens: 0,
+                cacheReadTokens: 0,
+                messageCount: 0,
+                records: []
+            };
+        }
     }
 
     /**

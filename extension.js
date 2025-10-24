@@ -114,11 +114,16 @@ async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
 
             await sessionTracker.updateTokens(usage.totalTokens, 200000); // 200k limit
 
-            // Update status bar
+            // Update status bar and tree view
             if (statusBarItem) {
                 const sessionData = await sessionTracker.getCurrentSession();
                 const activityStats = activityMonitor ? activityMonitor.getStats(dataProvider?.usageData, sessionData) : null;
                 updateStatusBar(statusBarItem, dataProvider?.usageData, activityStats, sessionData);
+
+                // Update tree view with session data
+                if (dataProvider) {
+                    dataProvider.updateSessionData(sessionData);
+                }
             }
         }
     } catch (error) {
@@ -148,11 +153,16 @@ async function activate(context) {
     // Monitor for Claude Code token usage updates via JSONL files
     await setupTokenMonitoring(context);
 
-    // Helper function to update status bar with all data
+    // Helper function to update status bar and tree view with all data
     async function updateStatusBarWithAllData() {
         const sessionData = sessionTracker ? await sessionTracker.getCurrentSession() : null;
         const activityStats = activityMonitor ? activityMonitor.getStats(dataProvider.usageData, sessionData) : null;
         updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
+
+        // Update tree view with session data
+        if (sessionData) {
+            dataProvider.updateSessionData(sessionData);
+        }
     }
 
     // Register tree data provider

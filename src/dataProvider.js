@@ -8,9 +8,19 @@ class UsageDataProvider {
         this._onDidChangeTreeData = new vscode.EventEmitter();
         this.onDidChangeTreeData = this._onDidChangeTreeData.event;
         this.usageData = null;
+        this.sessionData = null;
         this.scraper = new ClaudeUsageScraper();
         this.usageHistory = new UsageHistory();
         this.isFirstFetch = true;
+    }
+
+    /**
+     * Update session data and refresh tree view
+     * @param {Object} sessionData - Session data from SessionTracker
+     */
+    updateSessionData(sessionData) {
+        this.sessionData = sessionData;
+        this.refresh();
     }
 
     /**
@@ -91,6 +101,28 @@ class UsageDataProvider {
                 'time'
             )
         );
+
+        // Add session token usage if available
+        if (this.sessionData && this.sessionData.tokenUsage) {
+            const tokenPercent = Math.round((this.sessionData.tokenUsage.current / this.sessionData.tokenUsage.limit) * 100);
+
+            // Determine token usage level for icon
+            let tokenUsageLevel = 'normal';
+            if (tokenPercent >= 90) {
+                tokenUsageLevel = 'critical';
+            } else if (tokenPercent >= 80) {
+                tokenUsageLevel = 'warning';
+            }
+
+            items.push(
+                new UsageTreeItem(
+                    'Session Tokens',
+                    `${this.sessionData.tokenUsage.current.toLocaleString()} / ${this.sessionData.tokenUsage.limit.toLocaleString()} (${tokenPercent}%)`,
+                    vscode.TreeItemCollapsibleState.None,
+                    tokenUsageLevel
+                )
+            );
+        }
 
         items.push(
             new UsageTreeItem(
