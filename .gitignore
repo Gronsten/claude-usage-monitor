@@ -36,3 +36,9 @@ session-data.json
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Test and development scripts
+test-*.js
+check-*.js
+examine-*.js
+RELEASE_NOTES_*.md
