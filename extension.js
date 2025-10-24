@@ -49,6 +49,24 @@ function setupTokenMonitoring(context) {
     // Method 3: Register a command that can be called externally
     context.subscriptions.push(
         vscode.commands.registerCommand('claude-usage.updateTokens', async (current, limit) => {
+            // If called from Command Palette (no arguments), prompt for input
+            if (current === undefined || limit === undefined) {
+                const tokenInput = await vscode.window.showInputBox({
+                    prompt: 'Enter current token usage (e.g., 87500)',
+                    placeHolder: '87500',
+                    validateInput: (value) => {
+                        return isNaN(parseInt(value)) ? 'Must be a number' : null;
+                    }
+                });
+
+                if (!tokenInput) {
+                    return; // User cancelled
+                }
+
+                current = parseInt(tokenInput);
+                limit = 200000; // Default limit
+            }
+
             diagnosticChannel.appendLine(`[Command] Received: ${current}/${limit}`);
             if (sessionTracker && typeof current === 'number' && typeof limit === 'number') {
                 await sessionTracker.updateTokens(current, limit);
@@ -62,6 +80,7 @@ function setupTokenMonitoring(context) {
                 }
 
                 diagnosticChannel.appendLine(`[Command] ✅ Tokens updated to ${current}/${limit}`);
+                vscode.window.showInformationMessage(`✅ Tokens updated: ${current}/${limit} (${Math.round(current/limit*100)}%)`);
             }
         })
     );
