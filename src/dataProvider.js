@@ -117,7 +117,7 @@ class UsageDataProvider {
             items.push(
                 new UsageTreeItem(
                     'Session Tokens',
-                    `${this.sessionData.tokenUsage.current.toLocaleString()} / ${this.sessionData.tokenUsage.limit.toLocaleString()} (${tokenPercent}%)`,
+                    `~${this.sessionData.tokenUsage.current.toLocaleString()} / ${this.sessionData.tokenUsage.limit.toLocaleString()} (~${tokenPercent}%)`,
                     vscode.TreeItemCollapsibleState.None,
                     tokenUsageLevel
                 )

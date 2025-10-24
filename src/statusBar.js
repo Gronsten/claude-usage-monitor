@@ -104,7 +104,7 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     }
 
     if (tokenPercent !== null) {
-        statusParts.push(`Tokens: ${tokenPercent}%`);
+        statusParts.push(`Tokens: ~${tokenPercent}%`);
     }
 
     statusText += ' ' + statusParts.join(' | ');
@@ -130,7 +130,7 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     // Add session token usage if available
     if (sessionData && sessionData.tokenUsage) {
         tooltipLines.push('');
-        tooltipLines.push(`**Session Tokens: ${sessionData.tokenUsage.current.toLocaleString()} / ${sessionData.tokenUsage.limit.toLocaleString()} (${tokenPercent}%)**`);
+        tooltipLines.push(`**Session Tokens: \\~${sessionData.tokenUsage.current.toLocaleString()} / ${sessionData.tokenUsage.limit.toLocaleString()} (\\~${tokenPercent}%)**`);
         tooltipLines.push(`Session: ${sessionData.sessionId}`);
     }
 
