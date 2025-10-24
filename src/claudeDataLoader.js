@@ -57,32 +57,6 @@ class ClaudeDataLoader {
     }
 
     /**
-     * Get the current project directory from VS Code workspace
-     * @returns {string|null} Current project subdirectory name or null
-     */
-    getCurrentProjectDir() {
-        const vscode = require('vscode');
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            return null;
-        }
-
-        // Get the workspace path and convert to Claude's format
-        // Claude stores projects as: ~/.claude/projects/c--path-to-project
-        const workspacePath = workspaceFolders[0].uri.fsPath;
-
-        // Convert path to Claude's format (replace separators with --)
-        // e.g., "c:\AppInstall\dev\project" -> "c--AppInstall-dev-project"
-        const claudeProjectName = workspacePath
-            .replace(/\\/g, '-')  // Replace backslashes with dash
-            .replace(/\//g, '-')  // Replace forward slashes with dash
-            .replace(/:/g, '--'); // Replace colons with double dash
-
-        return claudeProjectName;
-    }
-
-    /**
      * Recursively find all JSONL files in a directory
      * @param {string} dirPath - Directory to search
      * @returns {Promise<string[]>} Array of JSONL file paths
@@ -258,11 +232,13 @@ class ClaudeDataLoader {
     }
 
     /**
-     * Get current session usage (last hour) for current project only
+     * Get current session usage from recently modified JSONL files
+     * Filters to JSONL files modified in last 5 minutes to get active conversation
      * @returns {Promise<object>} Current session usage data
      */
     async getCurrentSessionUsage() {
         const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         const dataDir = await this.findClaudeDataDirectory();
 
         if (!dataDir) {
@@ -277,23 +253,30 @@ class ClaudeDataLoader {
             };
         }
 
-        // Get current project directory name
-        const currentProject = this.getCurrentProjectDir();
-
-        if (!currentProject) {
-            console.warn('No workspace folder detected - cannot filter to current project');
-            // Fallback to all records if no workspace
-            return await this.loadUsageRecords(oneHourAgo);
-        }
-
-        // Only search in the current project's subdirectory
-        const projectDir = path.join(dataDir, currentProject);
-        const fs = require('fs');
-
         try {
-            // Check if project directory exists
-            if (!fs.existsSync(projectDir)) {
-                console.log(`Project directory not found: ${projectDir}`);
+            // Find ALL JSONL files recursively
+            const allJsonlFiles = await this.findJsonlFiles(dataDir);
+
+            // Filter to files modified in last 5 minutes (active conversation)
+            const recentFiles = [];
+            for (const filePath of allJsonlFiles) {
+                try {
+                    const stats = await fs.stat(filePath);
+                    const modifiedTime = stats.mtimeMs;
+
+                    if (modifiedTime >= fiveMinutesAgo) {
+                        recentFiles.push(filePath);
+                    }
+                } catch (statError) {
+                    // Skip files that can't be stat'd
+                    continue;
+                }
+            }
+
+            console.log(`Found ${recentFiles.length} JSONL files modified in last 5 minutes (out of ${allJsonlFiles.length} total)`);
+
+            if (recentFiles.length === 0) {
+                console.log('No recently modified JSONL files - conversation may be inactive');
                 return {
                     totalTokens: 0,
                     inputTokens: 0,
@@ -305,17 +288,14 @@ class ClaudeDataLoader {
                 };
             }
 
-            // Find JSONL files only in current project directory
-            const jsonlFiles = await this.findJsonlFiles(projectDir);
-            console.log(`Found ${jsonlFiles.length} JSONL files in current project: ${currentProject}`);
-
+            // Parse only recently modified files
             const allRecords = [];
-            for (const filePath of jsonlFiles) {
+            for (const filePath of recentFiles) {
                 const records = await this.parseJsonlFile(filePath);
                 allRecords.push(...records);
             }
 
-            // Filter by timestamp (last hour)
+            // Filter by record timestamp (last hour)
             const filteredRecords = allRecords.filter(record => {
                 const recordTime = new Date(record.timestamp).getTime();
                 return recordTime >= oneHourAgo;
