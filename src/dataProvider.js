@@ -1,5 +1,6 @@
 const vscode = require('vscode');
 const { ClaudeUsageScraper } = require('./scraper');
+const { UsageHistory } = require('./usageHistory');
 
 class UsageDataProvider {
     constructor() {
@@ -7,6 +8,7 @@ class UsageDataProvider {
         this.onDidChangeTreeData = this._onDidChangeTreeData.event;
         this.usageData = null;
         this.scraper = new ClaudeUsageScraper();
+        this.usageHistory = new UsageHistory();
         this.isFirstFetch = true;
     }
 
@@ -64,14 +66,28 @@ class UsageDataProvider {
                 `${this.usageData.usagePercent}%`,
                 vscode.TreeItemCollapsibleState.None,
                 usageLevel
-            ),
+            )
+        ];
+
+        // Add sparkline for 5-hour usage history
+        const fiveHourSparkline = await this.usageHistory.getFiveHourSparkline(8);
+        items.push(
+            new UsageTreeItem(
+                '  ',
+                fiveHourSparkline,
+                vscode.TreeItemCollapsibleState.None,
+                'graph'
+            )
+        );
+
+        items.push(
             new UsageTreeItem(
                 'Resets in',
                 this.usageData.resetTime,
                 vscode.TreeItemCollapsibleState.None,
                 'time'
             )
-        ];
+        );
 
         // Add weekly data if available (from API response)
         if (this.usageData.usagePercentWeek !== undefined) {
@@ -89,6 +105,17 @@ class UsageDataProvider {
                     `${this.usageData.usagePercentWeek}%`,
                     vscode.TreeItemCollapsibleState.None,
                     weeklyUsageLevel
+                )
+            );
+
+            // Add sparkline for 7-day usage history
+            const sevenDaySparkline = await this.usageHistory.getSevenDaySparkline(8);
+            items.push(
+                new UsageTreeItem(
+                    '  ',
+                    sevenDaySparkline,
+                    vscode.TreeItemCollapsibleState.None,
+                    'graph'
                 )
             );
 
@@ -157,6 +184,14 @@ class UsageDataProvider {
 
                     // Fetch usage data from web scrape
                     this.usageData = await this.scraper.fetchUsageData();
+
+                    // Save data point to history for sparkline generation
+                    if (this.usageData) {
+                        await this.usageHistory.addDataPoint(
+                            this.usageData.usagePercent,
+                            this.usageData.usagePercentWeek
+                        );
+                    }
 
                     progress.report({ increment: 100, message: 'Complete!' });
 
@@ -246,6 +281,9 @@ class UsageTreeItem extends vscode.TreeItem {
                 break;
             case 'clock':
                 this.iconPath = new vscode.ThemeIcon('history');
+                break;
+            case 'graph':
+                this.iconPath = new vscode.ThemeIcon('graph-line');
                 break;
             case 'info':
             default:
