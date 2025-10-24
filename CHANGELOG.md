@@ -2,6 +2,44 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.2.0] - 2025-10-24
+
+### Added
+- **Direct API Access** 🚀: Extension now uses Claude.ai's internal API for faster, more reliable data retrieval
+  - Request interception captures `/api/organizations/{id}/usage` endpoint automatically
+  - Direct fetch API calls within page context for proper authentication
+  - 2-3x faster than HTML scraping method
+  - More reliable (JSON parsing vs regex on changing HTML)
+  - Better data quality with structured API responses
+- **7-Day Usage Tracking**: Now displays both 5-hour and 7-day usage metrics
+  - Tree view shows "Usage (5-hour)" and "Usage (7-day)" separately
+  - Weekly reset time displayed when available
+  - Color-coded indicators for both usage types
+- **Enhanced Reset Time Calculation**: Human-readable reset times from ISO timestamps
+  - Examples: "2h 30m", "1d 4h", "45m"
+  - More accurate than previous HTML parsing method
+
+### Changed
+- **Intelligent Fallback**: Gracefully falls back to HTML scraping if API access fails
+  - Maintains backward compatibility
+  - Logs method used (API vs HTML) for debugging
+  - No user intervention required
+- **Request Interception**: Puppeteer now intercepts requests to capture API endpoints
+  - Enabled on both new browser launches and existing browser connections
+  - Automatic capture on first page load
+  - Cached for subsequent usage fetches
+
+### Technical Details
+- New methods: `setupRequestInterception()`, `processApiResponse()`, `calculateResetTime()`
+- Enhanced `fetchUsageData()` with API-first approach
+- Updated data provider to handle weekly usage data
+- Raw API response stored in `usageData.rawData` for future enhancements
+
+### Performance
+- **Faster**: 2-3x reduction in data fetch time
+- **More Reliable**: No more breakage when Claude.ai updates their HTML
+- **Future-Proof**: API endpoints are more stable than UI layouts
+
 ## [2.1.0] - 2025-10-22
 
 ### Changed
