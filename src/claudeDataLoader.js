@@ -9,7 +9,6 @@ const os = require('os');
 class ClaudeDataLoader {
     constructor() {
         this.claudeConfigPaths = this.getClaudeConfigPaths();
-        this.lastProcessedRecords = new Set(); // Deduplicate by message.id + requestId
     }
 
     /**
