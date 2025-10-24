@@ -87,6 +87,22 @@ function setupTokenMonitoring(context) {
 
     diagnosticChannel.appendLine('✅ Token monitoring initialized');
     diagnosticChannel.appendLine('Try running: code --command claude-usage.updateTokens 12345 200000');
+
+    // EXPERIMENTAL: Try to access Claude Code extension API
+    const claudeCodeExt = vscode.extensions.getExtension('anthropic.claude-code');
+    if (claudeCodeExt) {
+        diagnosticChannel.appendLine('✅ Found Claude Code extension');
+        diagnosticChannel.appendLine(`   Version: ${claudeCodeExt.packageJSON.version}`);
+        diagnosticChannel.appendLine(`   Active: ${claudeCodeExt.isActive}`);
+
+        if (claudeCodeExt.isActive && claudeCodeExt.exports) {
+            diagnosticChannel.appendLine(`   Exports available: ${Object.keys(claudeCodeExt.exports).join(', ')}`);
+        } else {
+            diagnosticChannel.appendLine('   No exports available or extension not active yet');
+        }
+    } else {
+        diagnosticChannel.appendLine('❌ Claude Code extension not found');
+    }
 }
 
 /**
