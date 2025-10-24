@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const { ClaudeUsageScraper } = require('./scraper');
 const { UsageHistory } = require('./usageHistory');
+const { calculateResetClockTime } = require('./utils');
 
 class UsageDataProvider {
     constructor() {
@@ -80,56 +81,16 @@ class UsageDataProvider {
             )
         );
 
+        // Calculate reset time in real clock format (24-hour)
+        const resetClockTime = calculateResetClockTime(this.usageData.resetTime);
         items.push(
             new UsageTreeItem(
                 'Resets in',
-                this.usageData.resetTime,
+                `${this.usageData.resetTime} (${resetClockTime})`,
                 vscode.TreeItemCollapsibleState.None,
                 'time'
             )
         );
-
-        // Add weekly data if available (from API response)
-        if (this.usageData.usagePercentWeek !== undefined) {
-            // Determine usage level for weekly usage
-            let weeklyUsageLevel = 'normal';
-            if (this.usageData.usagePercentWeek >= 90) {
-                weeklyUsageLevel = 'critical';
-            } else if (this.usageData.usagePercentWeek >= 80) {
-                weeklyUsageLevel = 'warning';
-            }
-
-            items.push(
-                new UsageTreeItem(
-                    'Usage (7-day)',
-                    `${this.usageData.usagePercentWeek}%`,
-                    vscode.TreeItemCollapsibleState.None,
-                    weeklyUsageLevel
-                )
-            );
-
-            // Add sparkline for 7-day usage history
-            const sevenDaySparkline = await this.usageHistory.getSevenDaySparkline(8);
-            items.push(
-                new UsageTreeItem(
-                    '  ',
-                    sevenDaySparkline,
-                    vscode.TreeItemCollapsibleState.None,
-                    'graph'
-                )
-            );
-
-            if (this.usageData.resetTimeWeek) {
-                items.push(
-                    new UsageTreeItem(
-                        'Weekly resets in',
-                        this.usageData.resetTimeWeek,
-                        vscode.TreeItemCollapsibleState.None,
-                        'time'
-                    )
-                );
-            }
-        }
 
         items.push(
             new UsageTreeItem(
@@ -187,10 +148,7 @@ class UsageDataProvider {
 
                     // Save data point to history for sparkline generation
                     if (this.usageData) {
-                        await this.usageHistory.addDataPoint(
-                            this.usageData.usagePercent,
-                            this.usageData.usagePercentWeek
-                        );
+                        await this.usageHistory.addDataPoint(this.usageData.usagePercent);
                     }
 
                     progress.report({ increment: 100, message: 'Complete!' });
@@ -220,15 +178,9 @@ class UsageDataProvider {
                     // Show success message with data source indicator
                     const usageIcon = this.usageData.usagePercent >= 80 ? '⚠️' : '✅';
                     const dataSource = this.usageData.rawData ? '🚀 API' : '📄 HTML';
+                    const resetClockTime = calculateResetClockTime(this.usageData.resetTime);
 
-                    let message = `${usageIcon} Claude Usage: ${this.usageData.usagePercent}% | Resets in: ${this.usageData.resetTime}`;
-
-                    // Add 7-day usage if available (from API)
-                    if (this.usageData.usagePercentWeek !== undefined) {
-                        message += ` | Weekly: ${this.usageData.usagePercentWeek}%`;
-                    }
-
-                    message += ` (${dataSource})`;
+                    const message = `${usageIcon} Claude Usage: ${this.usageData.usagePercent}% | Resets: ${this.usageData.resetTime} (${resetClockTime}) | ${dataSource}`;
 
                     vscode.window.showInformationMessage(message);
                 }

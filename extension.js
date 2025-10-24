@@ -102,14 +102,23 @@ async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
 
         // Update session tracker with total tokens
         if (sessionTracker && usage.totalTokens > 0) {
+            // Ensure a session exists
+            let currentSession = await sessionTracker.getCurrentSession();
+            if (!currentSession) {
+                // Auto-create a session if none exists
+                currentSession = await sessionTracker.startSession('Claude Code session (auto-created)');
+                if (!silent) {
+                    diagnosticChannel.appendLine(`✨ Created new session: ${currentSession.sessionId}`);
+                }
+            }
+
             await sessionTracker.updateTokens(usage.totalTokens, 200000); // 200k limit
 
             // Update status bar
-            if (dataProvider && statusBarItem && activityMonitor) {
+            if (statusBarItem) {
                 const sessionData = await sessionTracker.getCurrentSession();
-                const activityStats = activityMonitor.getStats(dataProvider.usageData, sessionData);
-                const { updateStatusBar } = require('./src/statusBar');
-                updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
+                const activityStats = activityMonitor ? activityMonitor.getStats(dataProvider?.usageData, sessionData) : null;
+                updateStatusBar(statusBarItem, dataProvider?.usageData, activityStats, sessionData);
             }
         }
     } catch (error) {

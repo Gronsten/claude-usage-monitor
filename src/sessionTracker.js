@@ -66,9 +66,7 @@ class SessionTracker {
                 limit: 200000,
                 remaining: 200000,
                 lastUpdate: new Date().toISOString()
-            },
-            activities: [],
-            fileChanges: []
+            }
         };
 
         data.sessions.push(this.currentSession);
@@ -109,66 +107,6 @@ class SessionTracker {
     }
 
     /**
-     * Add an activity to current session
-     * @param {string} activity - Description of activity
-     */
-    async addActivity(activity) {
-        const data = await this.loadData();
-        const session = this.currentSession || data.sessions[data.sessions.length - 1];
-
-        if (!session) {
-            console.warn('No active session to add activity to');
-            return;
-        }
-
-        if (!session.activities.includes(activity)) {
-            session.activities.push(activity);
-            await this.saveData(data);
-        }
-    }
-
-    /**
-     * Add file changes to current session
-     * @param {string|string[]} files - File(s) changed
-     */
-    async addFileChanges(files) {
-        const data = await this.loadData();
-        const session = this.currentSession || data.sessions[data.sessions.length - 1];
-
-        if (!session) {
-            console.warn('No active session to add file changes to');
-            return;
-        }
-
-        const fileArray = Array.isArray(files) ? files : [files];
-
-        for (const file of fileArray) {
-            if (!session.fileChanges.includes(file)) {
-                session.fileChanges.push(file);
-            }
-        }
-
-        await this.saveData(data);
-    }
-
-    /**
-     * End current session
-     */
-    async endSession() {
-        const data = await this.loadData();
-        const session = this.currentSession || data.sessions[data.sessions.length - 1];
-
-        if (!session) {
-            console.warn('No active session to end');
-            return;
-        }
-
-        session.endTime = new Date().toISOString();
-        await this.saveData(data);
-        this.currentSession = null;
-    }
-
-    /**
      * Get current session info
      * @returns {Promise<Object|null>}
      */
@@ -179,46 +117,6 @@ class SessionTracker {
 
         const data = await this.loadData();
         return data.sessions.length > 0 ? data.sessions[data.sessions.length - 1] : null;
-    }
-
-    /**
-     * Get summary statistics
-     * @returns {Promise<Object>}
-     */
-    async getSummary() {
-        const data = await this.loadData();
-        return {
-            totalSessions: data.sessions.length,
-            totalTokens: data.totals.totalTokensUsed,
-            averageTokensPerSession: data.sessions.length > 0
-                ? Math.round(data.totals.totalTokensUsed / data.sessions.length)
-                : 0,
-            lastSession: data.sessions.length > 0
-                ? data.sessions[data.sessions.length - 1]
-                : null
-        };
-    }
-
-    /**
-     * Reset token usage for current session to zero
-     * Useful for clearing session data when Claude Code exits
-     */
-    async resetSessionTokens() {
-        const data = await this.loadData();
-        const session = this.currentSession || (data.sessions.length > 0 ? data.sessions[data.sessions.length - 1] : null);
-
-        if (!session) {
-            console.log('No session to reset');
-            return;
-        }
-
-        // Reset token usage to zero
-        session.tokenUsage.current = 0;
-        session.tokenUsage.remaining = session.tokenUsage.limit;
-        session.tokenUsage.lastUpdate = new Date().toISOString();
-
-        await this.saveData(data);
-        console.log(`Session tokens reset for: ${session.sessionId}`);
     }
 }
 

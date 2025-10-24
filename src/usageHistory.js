@@ -41,15 +41,13 @@ class UsageHistory {
     /**
      * Add a new data point to history
      * @param {number} fiveHourUsage - 5-hour usage percentage
-     * @param {number} sevenDayUsage - 7-day usage percentage (optional)
      */
-    async addDataPoint(fiveHourUsage, sevenDayUsage = null) {
+    async addDataPoint(fiveHourUsage) {
         const data = await this.loadData();
 
         const dataPoint = {
             timestamp: new Date().toISOString(),
-            fiveHour: fiveHourUsage,
-            sevenDay: sevenDayUsage
+            fiveHour: fiveHourUsage
         };
 
         // Add new data point
@@ -131,30 +129,6 @@ class UsageHistory {
     }
 
     /**
-     * Get sparkline for 7-day usage history
-     * @param {number} count - Number of data points to include
-     * @returns {Promise<string>}
-     */
-    async getSevenDaySparkline(count = 8) {
-        const dataPoints = await this.getRecentDataPoints(count);
-
-        if (dataPoints.length === 0) {
-            return '▁▁▁▁▁▁▁▁'; // Not enough data yet
-        }
-
-        // Filter out data points without 7-day data
-        const valuesWithData = dataPoints
-            .filter(dp => dp.sevenDay !== null && dp.sevenDay !== undefined)
-            .map(dp => dp.sevenDay);
-
-        if (valuesWithData.length === 0) {
-            return '▁▁▁▁▁▁▁▁'; // No 7-day data available
-        }
-
-        return this.generateSparkline(valuesWithData);
-    }
-
-    /**
      * Clear all historical data
      */
     async clearHistory() {
@@ -162,39 +136,6 @@ class UsageHistory {
             dataPoints: [],
             lastUpdated: null
         });
-    }
-
-    /**
-     * Get summary statistics
-     * @returns {Promise<Object>}
-     */
-    async getStats() {
-        const data = await this.loadData();
-
-        if (data.dataPoints.length === 0) {
-            return {
-                totalDataPoints: 0,
-                oldestTimestamp: null,
-                newestTimestamp: null,
-                avgFiveHour: 0,
-                avgSevenDay: 0
-            };
-        }
-
-        const fiveHourValues = data.dataPoints.map(dp => dp.fiveHour);
-        const sevenDayValues = data.dataPoints
-            .filter(dp => dp.sevenDay !== null && dp.sevenDay !== undefined)
-            .map(dp => dp.sevenDay);
-
-        return {
-            totalDataPoints: data.dataPoints.length,
-            oldestTimestamp: data.dataPoints[0].timestamp,
-            newestTimestamp: data.dataPoints[data.dataPoints.length - 1].timestamp,
-            avgFiveHour: fiveHourValues.reduce((a, b) => a + b, 0) / fiveHourValues.length,
-            avgSevenDay: sevenDayValues.length > 0
-                ? sevenDayValues.reduce((a, b) => a + b, 0) / sevenDayValues.length
-                : 0
-        };
     }
 }
 

@@ -1,4 +1,5 @@
 const vscode = require('vscode');
+const { calculateResetClockTime } = require('./utils');
 
 /**
  * Create and configure the status bar item
@@ -116,8 +117,9 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
 
     // Add Claude.ai usage if available
     if (usageData) {
+        const resetClockTime = calculateResetClockTime(usageData.resetTime);
         tooltipLines.push(`**Claude.ai Usage: ${usageData.usagePercent}%**`);
-        tooltipLines.push(`Resets in: ${usageData.resetTime}`);
+        tooltipLines.push(`Resets in: ${usageData.resetTime} (${resetClockTime})`);
         tooltipLines.push(`Last updated: ${usageData.timestamp.toLocaleTimeString()}`);
     } else {
         // If web scraping failed, show a message
