@@ -27,7 +27,7 @@ claude-usage/
 
 ### Step 1: Open the Project
 ```bash
-cd "c:\Users\mark.campbell3\OneDrive - Chick-fil-A, Inc\Desktop\!_WORKING\vscode-extensions\claude-usage"
+cd vscode-extensions/claude-usage
 code .
 ```
 
@@ -79,7 +79,7 @@ npm install -g @vscode/vsce
 
 ### Create VSIX Package
 ```bash
-cd "c:\Users\mark.campbell3\OneDrive - Chick-fil-A, Inc\Desktop\!_WORKING\vscode-extensions\claude-usage"
+cd vscode-extensions/claude-usage
 vsce package
 ```
 
