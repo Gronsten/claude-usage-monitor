@@ -103,6 +103,75 @@ function setupTokenMonitoring(context) {
     } else {
         diagnosticChannel.appendLine('❌ Claude Code extension not found');
     }
+
+    // EXPERIMENTAL: Intercept console output to capture token warnings
+    setupConsoleInterception(diagnosticChannel);
+}
+
+/**
+ * EXPERIMENTAL: Intercept console output to capture token usage warnings
+ * @param {vscode.OutputChannel} diagnosticChannel
+ */
+function setupConsoleInterception(diagnosticChannel) {
+    diagnosticChannel.appendLine('🔬 Setting up console interception...');
+
+    // Store original console methods
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+
+    // Counter for captured messages
+    let captureCount = 0;
+
+    // Intercept console.warn (most likely for warnings)
+    console.warn = function(...args) {
+        const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+
+        // Check for token usage pattern
+        if (message.includes('Token usage:') || message.includes('system_warning')) {
+            captureCount++;
+            diagnosticChannel.appendLine(`🎯 [console.warn #${captureCount}] ${message.substring(0, 200)}`);
+            parseAndUpdateTokens(message, 'Console.warn').catch(err => {
+                diagnosticChannel.appendLine(`⚠️ Error parsing: ${err.message}`);
+            });
+        }
+
+        return originalWarn.apply(console, args);
+    };
+
+    // Intercept console.log
+    console.log = function(...args) {
+        const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+
+        if (message.includes('Token usage:') || message.includes('system_warning')) {
+            captureCount++;
+            diagnosticChannel.appendLine(`🎯 [console.log #${captureCount}] ${message.substring(0, 200)}`);
+            parseAndUpdateTokens(message, 'Console.log').catch(err => {
+                diagnosticChannel.appendLine(`⚠️ Error parsing: ${err.message}`);
+            });
+        }
+
+        return originalLog.apply(console, args);
+    };
+
+    // Intercept console.error
+    console.error = function(...args) {
+        const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+
+        if (message.includes('Token usage:') || message.includes('system_warning')) {
+            captureCount++;
+            diagnosticChannel.appendLine(`🎯 [console.error #${captureCount}] ${message.substring(0, 200)}`);
+            parseAndUpdateTokens(message, 'Console.error').catch(err => {
+                diagnosticChannel.appendLine(`⚠️ Error parsing: ${err.message}`);
+            });
+        }
+
+        return originalError.apply(console, args);
+    };
+
+    diagnosticChannel.appendLine('✅ Console interception active');
+    diagnosticChannel.appendLine('   Monitoring: console.log, console.warn, console.error');
+    diagnosticChannel.appendLine('   Pattern: "Token usage:" or "system_warning"');
 }
 
 /**
