@@ -1,13 +1,22 @@
 # Claude Usage Monitor
 
-Monitor your Claude.ai chat usage directly in VS Code. This extension uses Puppeteer to fetch your current usage percentage and reset time from the Claude.ai settings page.
+Monitor your Claude.ai chat usage directly in VS Code. This extension uses direct API access (with intelligent fallback to web scraping) to fetch your current usage percentage and reset time from Claude.ai.
 
 ## Features
 
+- **Direct API Access** 🚀: Fast, reliable data retrieval using Claude.ai's internal API
+  - 2-3x faster than traditional web scraping
+  - More reliable (JSON parsing vs HTML regex)
+  - Intelligent fallback to HTML scraping if API fails
+  - No breaking changes when Claude.ai updates their UI
 - **Dual Usage Monitoring**: Track both Claude.ai usage AND development session token usage
-  - Claude.ai monthly usage percentage
+  - Claude.ai 5-hour and 7-day usage percentages
   - Current session token count (from `session-data.json`)
   - Automatically updated when developing with Claude Code (see [SESSION_TRACKING.md](SESSION_TRACKING.md))
+- **Enhanced Usage Metrics**: Separate tracking for different time windows
+  - 5-hour usage limit with reset time
+  - 7-day rolling usage with weekly reset
+  - Color-coded indicators for both metrics
 - **Status Bar Integration**: See both percentages at a glance (e.g., "Claude: 45% | Tokens: 26%")
 - **Tree View Panel**: Detailed usage information in a dedicated side panel
 - **Fixed 5-Minute Refresh**: Simple, reliable refresh every 5 minutes
@@ -19,7 +28,6 @@ Monitor your Claude.ai chat usage directly in VS Code. This extension uses Puppe
 - **Silent Mode**: Runs browser in headless (hidden) mode, shows window only if login needed
 - **Session Persistence**: Log in once, stay authenticated across VS Code sessions
 - **Visual Indicators**: Color-coded warnings when approaching usage limits
-- **Direct Navigation**: Optimized scraping that goes straight to the usage page
 
 ## Installation
 
