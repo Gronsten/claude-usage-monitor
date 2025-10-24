@@ -3,201 +3,117 @@ const { UsageDataProvider } = require('./src/dataProvider');
 const { createStatusBarItem, updateStatusBar } = require('./src/statusBar');
 const { ActivityMonitor } = require('./src/activityMonitor');
 const { SessionTracker } = require('./src/sessionTracker');
+const { ClaudeDataLoader } = require('./src/claudeDataLoader');
 
 let statusBarItem;
 let dataProvider;
 let autoRefreshTimer;
 let activityMonitor;
 let sessionTracker;
+let claudeDataLoader;
+let jsonlWatcher;
 
 /**
- * EXPERIMENTAL: Set up monitoring for Claude Code token usage
- * Attempts to capture token usage from various VS Code output channels
+ * Set up monitoring for Claude Code token usage via JSONL files
+ * Monitors ~/.config/claude/projects/*.jsonl for usage data
  * @param {vscode.ExtensionContext} context
  */
-function setupTokenMonitoring(context) {
-    console.log('🧪 [EXPERIMENTAL] Setting up token monitoring...');
+async function setupTokenMonitoring(context) {
+    console.log('📊 Setting up Claude Code JSONL token monitoring...');
 
     // Create a diagnostic output channel for monitoring
     const diagnosticChannel = vscode.window.createOutputChannel('Claude Usage - Token Monitor');
     context.subscriptions.push(diagnosticChannel);
 
-    // Method 1: Monitor terminal output
-    // NOTE: onDidWriteTerminalData is a proposed API and causes activation failure
-    // Commenting out for now - will explore alternative approaches
-    // context.subscriptions.push(
-    //     vscode.window.onDidWriteTerminalData(async (event) => {
-    //         const text = event.data;
-    //         diagnosticChannel.appendLine(`[Terminal] ${text.substring(0, 200)}`);
-    //         await parseAndUpdateTokens(text, 'Terminal');
-    //     })
-    // );
+    // Initialize the Claude data loader
+    claudeDataLoader = new ClaudeDataLoader();
 
-    // Method 2: Monitor text document changes (if Claude Code writes to files)
-    context.subscriptions.push(
-        vscode.workspace.onDidChangeTextDocument(async (event) => {
-            const text = event.document.getText();
-
-            // Only check if document might contain Claude output
-            if (text.includes('system_warning') || text.includes('Token usage:')) {
-                diagnosticChannel.appendLine(`[Document] ${event.document.fileName}`);
-                await parseAndUpdateTokens(text, 'Document');
-            }
-        })
-    );
-
-    // Method 3: Register a command that can be called externally
-    context.subscriptions.push(
-        vscode.commands.registerCommand('claude-usage.updateTokens', async (current, limit) => {
-            // If called from Command Palette (no arguments), prompt for input
-            if (current === undefined || limit === undefined) {
-                const tokenInput = await vscode.window.showInputBox({
-                    prompt: 'Enter current token usage (e.g., 87500)',
-                    placeHolder: '87500',
-                    validateInput: (value) => {
-                        return isNaN(parseInt(value)) ? 'Must be a number' : null;
-                    }
-                });
-
-                if (!tokenInput) {
-                    return; // User cancelled
-                }
-
-                current = parseInt(tokenInput);
-                limit = 200000; // Default limit
-            }
-
-            diagnosticChannel.appendLine(`[Command] Received: ${current}/${limit}`);
-            if (sessionTracker && typeof current === 'number' && typeof limit === 'number') {
-                await sessionTracker.updateTokens(current, limit);
-
-                // Update status bar if available
-                if (dataProvider && statusBarItem && activityMonitor) {
-                    const sessionData = await sessionTracker.getCurrentSession();
-                    const activityStats = activityMonitor.getStats(dataProvider.usageData, sessionData);
-                    const { updateStatusBar } = require('./src/statusBar');
-                    updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
-                }
-
-                diagnosticChannel.appendLine(`[Command] ✅ Tokens updated to ${current}/${limit}`);
-                vscode.window.showInformationMessage(`✅ Tokens updated: ${current}/${limit} (${Math.round(current/limit*100)}%)`);
-            }
-        })
-    );
-
-    diagnosticChannel.appendLine('✅ Token monitoring initialized');
-    diagnosticChannel.appendLine('Try running: code --command claude-usage.updateTokens 12345 200000');
-
-    // EXPERIMENTAL: Try to access Claude Code extension API
-    const claudeCodeExt = vscode.extensions.getExtension('anthropic.claude-code');
-    if (claudeCodeExt) {
-        diagnosticChannel.appendLine('✅ Found Claude Code extension');
-        diagnosticChannel.appendLine(`   Version: ${claudeCodeExt.packageJSON.version}`);
-        diagnosticChannel.appendLine(`   Active: ${claudeCodeExt.isActive}`);
-
-        if (claudeCodeExt.isActive && claudeCodeExt.exports) {
-            diagnosticChannel.appendLine(`   Exports available: ${Object.keys(claudeCodeExt.exports).join(', ')}`);
-        } else {
-            diagnosticChannel.appendLine('   No exports available or extension not active yet');
-        }
-    } else {
-        diagnosticChannel.appendLine('❌ Claude Code extension not found');
+    // Try to find Claude data directory
+    const claudeDir = await claudeDataLoader.findClaudeDataDirectory();
+    if (!claudeDir) {
+        diagnosticChannel.appendLine('⚠️ Claude data directory not found');
+        diagnosticChannel.appendLine('Checked locations:');
+        claudeDataLoader.claudeConfigPaths.forEach(p => {
+            diagnosticChannel.appendLine(`  - ${p}`);
+        });
+        diagnosticChannel.appendLine('Token monitoring will not be available.');
+        return;
     }
 
-    // EXPERIMENTAL: Intercept console output to capture token warnings
-    setupConsoleInterception(diagnosticChannel);
+    diagnosticChannel.appendLine(`✅ Found Claude data directory: ${claudeDir}`);
+
+    // Initial load of usage data
+    await updateTokensFromJsonl(diagnosticChannel);
+
+    // Set up file watcher for JSONL directory
+    const fs = require('fs');
+    if (fs.existsSync(claudeDir)) {
+        jsonlWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(claudeDir, '**/*.jsonl')
+        );
+
+        // Watch for file changes
+        jsonlWatcher.onDidChange(async () => {
+            diagnosticChannel.appendLine('📝 JSONL file changed, updating tokens...');
+            await updateTokensFromJsonl(diagnosticChannel);
+        });
+
+        // Watch for new files
+        jsonlWatcher.onDidCreate(async () => {
+            diagnosticChannel.appendLine('📝 New JSONL file created, updating tokens...');
+            await updateTokensFromJsonl(diagnosticChannel);
+        });
+
+        context.subscriptions.push(jsonlWatcher);
+        diagnosticChannel.appendLine('✅ File watcher active for JSONL changes');
+    }
+
+    // Also poll every 30 seconds for safety (in case file watcher misses events)
+    const pollInterval = setInterval(async () => {
+        await updateTokensFromJsonl(diagnosticChannel, true); // Silent mode
+    }, 30000);
+
+    context.subscriptions.push({
+        dispose: () => clearInterval(pollInterval)
+    });
+
+    diagnosticChannel.appendLine('✅ Token monitoring initialized');
+    diagnosticChannel.appendLine(`   Polling interval: 30 seconds`);
+    diagnosticChannel.appendLine(`   Watching: ${claudeDir}/**/*.jsonl`);
 }
 
 /**
- * EXPERIMENTAL: Intercept console output to capture token usage warnings
+ * Update token usage from JSONL data
  * @param {vscode.OutputChannel} diagnosticChannel
+ * @param {boolean} silent - If true, don't log every update
  */
-function setupConsoleInterception(diagnosticChannel) {
-    diagnosticChannel.appendLine('🔬 Setting up console interception...');
+async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
+    try {
+        // Get current session usage (last hour)
+        const usage = await claudeDataLoader.getCurrentSessionUsage();
 
-    // Store original console methods
-    const originalLog = console.log;
-    const originalWarn = console.warn;
-    const originalError = console.error;
-
-    // Counter for captured messages
-    let captureCount = 0;
-
-    // Intercept console.warn (most likely for warnings)
-    console.warn = function(...args) {
-        const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-
-        // Check for token usage pattern
-        if (message.includes('Token usage:') || message.includes('system_warning')) {
-            captureCount++;
-            diagnosticChannel.appendLine(`🎯 [console.warn #${captureCount}] ${message.substring(0, 200)}`);
-            parseAndUpdateTokens(message, 'Console.warn').catch(err => {
-                diagnosticChannel.appendLine(`⚠️ Error parsing: ${err.message}`);
-            });
+        if (!silent) {
+            diagnosticChannel.appendLine(`📊 Current session: ${usage.totalTokens} tokens (${usage.messageCount} messages)`);
+            diagnosticChannel.appendLine(`   Input: ${usage.inputTokens}, Output: ${usage.outputTokens}`);
+            if (usage.cacheReadTokens > 0) {
+                diagnosticChannel.appendLine(`   Cache read: ${usage.cacheReadTokens}, Cache creation: ${usage.cacheCreationTokens}`);
+            }
         }
 
-        return originalWarn.apply(console, args);
-    };
+        // Update session tracker with total tokens
+        if (sessionTracker && usage.totalTokens > 0) {
+            await sessionTracker.updateTokens(usage.totalTokens, 200000); // 200k limit
 
-    // Intercept console.log
-    console.log = function(...args) {
-        const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-
-        if (message.includes('Token usage:') || message.includes('system_warning')) {
-            captureCount++;
-            diagnosticChannel.appendLine(`🎯 [console.log #${captureCount}] ${message.substring(0, 200)}`);
-            parseAndUpdateTokens(message, 'Console.log').catch(err => {
-                diagnosticChannel.appendLine(`⚠️ Error parsing: ${err.message}`);
-            });
+            // Update status bar
+            if (dataProvider && statusBarItem && activityMonitor) {
+                const sessionData = await sessionTracker.getCurrentSession();
+                const activityStats = activityMonitor.getStats(dataProvider.usageData, sessionData);
+                const { updateStatusBar } = require('./src/statusBar');
+                updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
+            }
         }
-
-        return originalLog.apply(console, args);
-    };
-
-    // Intercept console.error
-    console.error = function(...args) {
-        const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-
-        if (message.includes('Token usage:') || message.includes('system_warning')) {
-            captureCount++;
-            diagnosticChannel.appendLine(`🎯 [console.error #${captureCount}] ${message.substring(0, 200)}`);
-            parseAndUpdateTokens(message, 'Console.error').catch(err => {
-                diagnosticChannel.appendLine(`⚠️ Error parsing: ${err.message}`);
-            });
-        }
-
-        return originalError.apply(console, args);
-    };
-
-    diagnosticChannel.appendLine('✅ Console interception active');
-    diagnosticChannel.appendLine('   Monitoring: console.log, console.warn, console.error');
-    diagnosticChannel.appendLine('   Pattern: "Token usage:" or "system_warning"');
-}
-
-/**
- * Parse text for token usage and update if found
- * @param {string} text - Text to parse
- * @param {string} source - Source of the text (for logging)
- */
-async function parseAndUpdateTokens(text, source) {
-    // Pattern: "Token usage: 78512/200000; 121488 remaining"
-    const match = text.match(/Token usage:\s*(\d+)\/(\d+);\s*(\d+)\s*remaining/i);
-
-    if (match && sessionTracker) {
-        const current = parseInt(match[1]);
-        const limit = parseInt(match[2]);
-
-        console.log(`🎯 [${source}] Detected token usage: ${current}/${limit}`);
-
-        await sessionTracker.updateTokens(current, limit);
-
-        // Update status bar if components are available
-        if (dataProvider && statusBarItem && activityMonitor) {
-            const sessionData = await sessionTracker.getCurrentSession();
-            const activityStats = activityMonitor.getStats(dataProvider.usageData, sessionData);
-            const { updateStatusBar } = require('./src/statusBar');
-            updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
-        }
+    } catch (error) {
+        diagnosticChannel.appendLine(`❌ Error updating tokens: ${error.message}`);
     }
 }
 
@@ -220,8 +136,8 @@ async function activate(context) {
     // Initialize session tracker
     sessionTracker = new SessionTracker();
 
-    // EXPERIMENTAL: Monitor for Claude Code token usage updates
-    setupTokenMonitoring(context);
+    // Monitor for Claude Code token usage updates via JSONL files
+    await setupTokenMonitoring(context);
 
     // Helper function to update status bar with all data
     async function updateStatusBarWithAllData() {
