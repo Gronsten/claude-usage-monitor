@@ -11,6 +11,93 @@ let activityMonitor;
 let sessionTracker;
 
 /**
+ * EXPERIMENTAL: Set up monitoring for Claude Code token usage
+ * Attempts to capture token usage from various VS Code output channels
+ * @param {vscode.ExtensionContext} context
+ */
+function setupTokenMonitoring(context) {
+    console.log('🧪 [EXPERIMENTAL] Setting up token monitoring...');
+
+    // Create a diagnostic output channel for monitoring
+    const diagnosticChannel = vscode.window.createOutputChannel('Claude Usage - Token Monitor');
+    context.subscriptions.push(diagnosticChannel);
+
+    // Method 1: Monitor terminal output
+    context.subscriptions.push(
+        vscode.window.onDidWriteTerminalData(async (event) => {
+            const text = event.data;
+            diagnosticChannel.appendLine(`[Terminal] ${text.substring(0, 200)}`);
+
+            // Try to parse token usage
+            await parseAndUpdateTokens(text, 'Terminal');
+        })
+    );
+
+    // Method 2: Monitor text document changes (if Claude Code writes to files)
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeTextDocument(async (event) => {
+            const text = event.document.getText();
+
+            // Only check if document might contain Claude output
+            if (text.includes('system_warning') || text.includes('Token usage:')) {
+                diagnosticChannel.appendLine(`[Document] ${event.document.fileName}`);
+                await parseAndUpdateTokens(text, 'Document');
+            }
+        })
+    );
+
+    // Method 3: Register a command that can be called externally
+    context.subscriptions.push(
+        vscode.commands.registerCommand('claude-usage.updateTokens', async (current, limit) => {
+            diagnosticChannel.appendLine(`[Command] Received: ${current}/${limit}`);
+            if (sessionTracker && typeof current === 'number' && typeof limit === 'number') {
+                await sessionTracker.updateTokens(current, limit);
+
+                // Update status bar if available
+                if (dataProvider && statusBarItem && activityMonitor) {
+                    const sessionData = await sessionTracker.getCurrentSession();
+                    const activityStats = activityMonitor.getStats(dataProvider.usageData, sessionData);
+                    const { updateStatusBar } = require('./src/statusBar');
+                    updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
+                }
+
+                diagnosticChannel.appendLine(`[Command] ✅ Tokens updated to ${current}/${limit}`);
+            }
+        })
+    );
+
+    diagnosticChannel.appendLine('✅ Token monitoring initialized');
+    diagnosticChannel.appendLine('Try running: code --command claude-usage.updateTokens 12345 200000');
+}
+
+/**
+ * Parse text for token usage and update if found
+ * @param {string} text - Text to parse
+ * @param {string} source - Source of the text (for logging)
+ */
+async function parseAndUpdateTokens(text, source) {
+    // Pattern: "Token usage: 78512/200000; 121488 remaining"
+    const match = text.match(/Token usage:\s*(\d+)\/(\d+);\s*(\d+)\s*remaining/i);
+
+    if (match && sessionTracker) {
+        const current = parseInt(match[1]);
+        const limit = parseInt(match[2]);
+
+        console.log(`🎯 [${source}] Detected token usage: ${current}/${limit}`);
+
+        await sessionTracker.updateTokens(current, limit);
+
+        // Update status bar if components are available
+        if (dataProvider && statusBarItem && activityMonitor) {
+            const sessionData = await sessionTracker.getCurrentSession();
+            const activityStats = activityMonitor.getStats(dataProvider.usageData, sessionData);
+            const { updateStatusBar } = require('./src/statusBar');
+            updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
+        }
+    }
+}
+
+/**
  * @param {vscode.ExtensionContext} context
  */
 async function activate(context) {
@@ -28,6 +115,9 @@ async function activate(context) {
 
     // Initialize session tracker
     sessionTracker = new SessionTracker();
+
+    // EXPERIMENTAL: Monitor for Claude Code token usage updates
+    setupTokenMonitoring(context);
 
     // Helper function to update status bar with all data
     async function updateStatusBarWithAllData() {
