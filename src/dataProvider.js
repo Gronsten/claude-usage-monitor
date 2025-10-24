@@ -58,9 +58,9 @@ class UsageDataProvider {
             usageLevel = 'warning';
         }
 
-        return [
+        const items = [
             new UsageTreeItem(
-                'Usage',
+                'Usage (5-hour)',
                 `${this.usageData.usagePercent}%`,
                 vscode.TreeItemCollapsibleState.None,
                 usageLevel
@@ -70,14 +70,50 @@ class UsageDataProvider {
                 this.usageData.resetTime,
                 vscode.TreeItemCollapsibleState.None,
                 'time'
-            ),
+            )
+        ];
+
+        // Add weekly data if available (from API response)
+        if (this.usageData.usagePercentWeek !== undefined) {
+            // Determine usage level for weekly usage
+            let weeklyUsageLevel = 'normal';
+            if (this.usageData.usagePercentWeek >= 90) {
+                weeklyUsageLevel = 'critical';
+            } else if (this.usageData.usagePercentWeek >= 80) {
+                weeklyUsageLevel = 'warning';
+            }
+
+            items.push(
+                new UsageTreeItem(
+                    'Usage (7-day)',
+                    `${this.usageData.usagePercentWeek}%`,
+                    vscode.TreeItemCollapsibleState.None,
+                    weeklyUsageLevel
+                )
+            );
+
+            if (this.usageData.resetTimeWeek) {
+                items.push(
+                    new UsageTreeItem(
+                        'Weekly resets in',
+                        this.usageData.resetTimeWeek,
+                        vscode.TreeItemCollapsibleState.None,
+                        'time'
+                    )
+                );
+            }
+        }
+
+        items.push(
             new UsageTreeItem(
                 'Last updated',
                 time,
                 vscode.TreeItemCollapsibleState.None,
                 'clock'
             )
-        ];
+        );
+
+        return items;
     }
 
     /**

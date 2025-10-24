@@ -12,6 +12,8 @@ class ClaudeUsageScraper {
         this.isInitialized = false;
         this.debugPort = 9222; // Chrome remote debugging port
         this.isConnectedBrowser = false; // Track if we connected vs launched
+        this.apiEndpoint = null; // Captured API endpoint URL
+        this.apiHeaders = null; // Captured API request headers
     }
 
     /**
@@ -107,6 +109,9 @@ class ClaudeUsageScraper {
             await this.page.setUserAgent(
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             );
+
+            // Set up request interception to capture API calls
+            await this.setupRequestInterception();
 
             this.isInitialized = true;
             this.isConnectedBrowser = true; // Mark as connected (not launched)
@@ -219,6 +224,9 @@ class ClaudeUsageScraper {
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             );
 
+            // Set up request interception to capture API calls
+            await this.setupRequestInterception();
+
             this.isInitialized = true;
             this.isConnectedBrowser = false; // Mark as launched (not connected)
             console.log('Successfully launched new browser');
@@ -279,21 +287,157 @@ class ClaudeUsageScraper {
     }
 
     /**
+     * Set up request interception to capture Claude API calls
+     */
+    async setupRequestInterception() {
+        try {
+            // Enable request interception
+            await this.page.setRequestInterception(true);
+
+            // Listen for API requests
+            this.page.on('request', (request) => {
+                const url = request.url();
+
+                // Capture the usage API endpoint
+                if (url.includes('/api/organizations/') && url.includes('/usage')) {
+                    this.apiEndpoint = url;
+                    this.apiHeaders = {
+                        ...request.headers(),
+                        'Content-Type': 'application/json'
+                    };
+                    console.log('Captured API endpoint:', this.apiEndpoint);
+                }
+
+                // Always continue the request
+                request.continue();
+            });
+
+            console.log('Request interception enabled for API capture');
+        } catch (error) {
+            console.warn('Failed to set up request interception:', error.message);
+            // Don't throw - fall back to HTML scraping
+        }
+    }
+
+    /**
+     * Calculate human-readable reset time from ISO timestamp
+     * @param {string} isoTimestamp - ISO 8601 timestamp
+     * @returns {string} Human-readable time remaining
+     */
+    calculateResetTime(isoTimestamp) {
+        if (!isoTimestamp) {
+            return 'Unknown';
+        }
+
+        try {
+            const resetDate = new Date(isoTimestamp);
+            const now = new Date();
+            const diffMs = resetDate - now;
+
+            if (diffMs <= 0) {
+                return 'Soon';
+            }
+
+            const hours = Math.floor(diffMs / (1000 * 60 * 60));
+            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+            if (hours > 24) {
+                const days = Math.floor(hours / 24);
+                const remainingHours = hours % 24;
+                return `${days}d ${remainingHours}h`;
+            } else if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            } else {
+                return `${minutes}m`;
+            }
+        } catch (error) {
+            console.error('Error calculating reset time:', error);
+            return 'Unknown';
+        }
+    }
+
+    /**
+     * Process API response and convert to expected format
+     * @param {object} apiResponse - Raw API response
+     * @returns {object} Processed usage data
+     */
+    processApiResponse(apiResponse) {
+        try {
+            const fiveHoursUsage = apiResponse.five_hour?.utilization || 0;
+            const resetsAtFiveHour = apiResponse.five_hour?.resets_at;
+
+            // Use 7-day utilization as the weekly percentage
+            const sevenDayUsage = apiResponse.seven_day?.utilization || 0;
+            const resetsAt = apiResponse.seven_day?.resets_at;
+
+            return {
+                usagePercent: fiveHoursUsage,
+                resetTime: this.calculateResetTime(resetsAtFiveHour),
+                usagePercentWeek: sevenDayUsage,
+                resetTimeWeek: this.calculateResetTime(resetsAt),
+                timestamp: new Date(),
+                rawData: apiResponse // Keep raw data for future use
+            };
+
+        } catch (error) {
+            console.error('Error processing API response:', error);
+            throw new Error('Failed to process API response data');
+        }
+    }
+
+    /**
      * Fetch usage data from Claude.ai settings/usage page
      * @returns {Promise<{usagePercent: number, resetTime: string, timestamp: Date}>}
      */
     async fetchUsageData() {
         try {
-            // Navigate directly to the usage page
+            // Navigate directly to the usage page to trigger API calls
             await this.page.goto('https://claude.ai/settings/usage', {
                 waitUntil: 'networkidle2',
                 timeout: 30000
             });
 
-            // Wait for page to load and render content
+            // Wait for page to load and potentially capture API endpoint
             await this.sleep(2000);
 
-            // Extract text content and parse usage data
+            // If we captured the API endpoint, use it directly for faster, more reliable data
+            if (this.apiEndpoint && this.apiHeaders) {
+                try {
+                    console.log('Using captured API endpoint for direct access');
+
+                    // Get cookies from the page context
+                    const cookies = await this.page.cookies();
+                    const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+
+                    // Make direct API call within page context to use browser's auth
+                    const response = await this.page.evaluate(async (endpoint, headers, cookieString) => {
+                        const response = await fetch(endpoint, {
+                            method: 'GET',
+                            headers: {
+                                ...headers,
+                                'Cookie': cookieString
+                            }
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`API request failed: ${response.status}`);
+                        }
+
+                        return await response.json();
+                    }, this.apiEndpoint, this.apiHeaders, cookieString);
+
+                    // Process API response and return
+                    console.log('Successfully fetched data via API');
+                    return this.processApiResponse(response);
+
+                } catch (apiError) {
+                    console.log('API call failed, falling back to HTML scraping:', apiError.message);
+                    // Fall through to HTML scraping fallback
+                }
+            }
+
+            // Fallback: Extract text content and parse usage data from HTML
+            console.log('Using HTML scraping method');
             const data = await this.page.evaluate(() => {
                 const bodyText = document.body.innerText;
 
