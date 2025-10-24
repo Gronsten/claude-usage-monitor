@@ -182,11 +182,20 @@ class UsageDataProvider {
                         `⚠️ Web scrape failed: ${webScrapeError.message}. Session token data still available.`
                     );
                 } else {
-                    // Show success message
+                    // Show success message with data source indicator
                     const usageIcon = this.usageData.usagePercent >= 80 ? '⚠️' : '✅';
-                    vscode.window.showInformationMessage(
-                        `${usageIcon} Claude Usage: ${this.usageData.usagePercent}% | Resets in: ${this.usageData.resetTime}`
-                    );
+                    const dataSource = this.usageData.rawData ? '🚀 API' : '📄 HTML';
+
+                    let message = `${usageIcon} Claude Usage: ${this.usageData.usagePercent}% | Resets in: ${this.usageData.resetTime}`;
+
+                    // Add 7-day usage if available (from API)
+                    if (this.usageData.usagePercentWeek !== undefined) {
+                        message += ` | Weekly: ${this.usageData.usagePercentWeek}%`;
+                    }
+
+                    message += ` (${dataSource})`;
+
+                    vscode.window.showInformationMessage(message);
                 }
             }
         );
