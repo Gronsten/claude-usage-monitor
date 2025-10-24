@@ -23,15 +23,15 @@ function setupTokenMonitoring(context) {
     context.subscriptions.push(diagnosticChannel);
 
     // Method 1: Monitor terminal output
-    context.subscriptions.push(
-        vscode.window.onDidWriteTerminalData(async (event) => {
-            const text = event.data;
-            diagnosticChannel.appendLine(`[Terminal] ${text.substring(0, 200)}`);
-
-            // Try to parse token usage
-            await parseAndUpdateTokens(text, 'Terminal');
-        })
-    );
+    // NOTE: onDidWriteTerminalData is a proposed API and causes activation failure
+    // Commenting out for now - will explore alternative approaches
+    // context.subscriptions.push(
+    //     vscode.window.onDidWriteTerminalData(async (event) => {
+    //         const text = event.data;
+    //         diagnosticChannel.appendLine(`[Terminal] ${text.substring(0, 200)}`);
+    //         await parseAndUpdateTokens(text, 'Terminal');
+    //     })
+    // );
 
     // Method 2: Monitor text document changes (if Claude Code writes to files)
     context.subscriptions.push(
