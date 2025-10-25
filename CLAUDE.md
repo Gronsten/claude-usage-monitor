@@ -47,93 +47,108 @@ claude-usage/
 
 ---
 
-## Session Token Tracking
+## Automatic Token Tracking (v2.3.0+)
 
-This extension tracks Claude Code session token usage in real-time.
+This extension **automatically tracks** Claude Code session token usage in real-time by monitoring JSONL files.
 
-### Session Lifecycle (Important!)
+### How It Works
 
-Claude Code conversations and VS Code extension lifecycles are different:
-- **Claude Code Conversation**: Starts when you begin a new chat, ends when you start another chat
-- **Extension Lifecycle**: Activates/deactivates when VS Code starts/stops or reloads
+The extension monitors `~/.claude/projects/*.jsonl` files where Claude Code stores conversation data:
+- **File Watcher**: Detects changes instantly when you use Claude Code
+- **30-Second Polling**: Backup mechanism ensures reliability
+- **Automatic Parsing**: Extracts token usage from JSONL entries
+- **Real-Time Display**: Updates status bar and tree view automatically
 
-**Key Point:** Sessions should track Claude Code conversations, NOT extension activations.
+### What Gets Tracked
 
-### Starting a New Session
+For the current session (last hour):
+- **Input Tokens**: Tokens in your prompts and context
+- **Output Tokens**: Tokens in Claude's responses
+- **Cache Read Tokens**: Tokens read from prompt cache
+- **Cache Creation Tokens**: Tokens used to create cache entries
 
-**At the beginning of each NEW Claude Code conversation**, use the VS Code command:
+### Token Display
 
-**"Claude: Start New Claude Code Session"** (Ctrl+Shift+P)
+**Status Bar:**
+- Shows combined Claude.ai usage + current session tokens
+- Example: `Claude: 45% | Session: 12.5K tokens`
+- Tooltip shows detailed breakdown
 
-This creates a new session with tokens starting at 0.
+**Tree View:**
+- Displays individual token categories
+- Shows sparkline graphs for usage trends
+- Updates automatically as you use Claude Code
 
-**Advanced: Command Line (optional)**
-```bash
-# Can run from any directory - session file is in OS temp directory
-node -e "const os=require('os');const path=require('path');const {SessionTracker}=require(path.join(os.tmpdir(),'..','vscode','extensions','gronsten.claude-session-usage-*','src','sessionTracker'));new SessionTracker().startSession('Your session description').then(s=>console.log('Started:',s.sessionId))"
+**Output Channel:**
+- Detailed diagnostic logs in "Claude Usage - Token Monitor"
+- Shows JSONL parsing results
+- Useful for troubleshooting
+
+### Data Sources
+
+The extension reads from two locations (checks both):
+1. `~/.claude/projects/` (Windows/Mac)
+2. `~/.config/claude/projects/` (Linux)
+
+JSONL files contain conversation history with format:
+```json
+{"type":"usage","inputTokens":1234,"outputTokens":567,...}
 ```
 
-### IMPORTANT: Update After Every Response
+### Usage History & Sparklines (v2.3.0)
 
-**You MUST update the claude-session-data.json file after EVERY response that includes tool calls.**
+The extension now visualizes usage trends:
+- **ASCII Sparklines**: Shows last 8 data points (e.g., `▁▂▃▅▆▇█▇`)
+- **5-Hour Usage**: Sparkline for hourly usage
+- **7-Day Usage**: Sparkline for weekly usage
+- **Automatic Updates**: New data point every 5 minutes
+- **Persistence**: Stored in `claude-usage-history.json`
 
-Look for the `<system_warning>Token usage: X/200000` message and use that number to update the session file.
+### No Manual Updates Needed!
 
-The session file is stored in your OS temp directory:
-- **Windows**: `C:\Users\username\AppData\Local\Temp\claude-session-data.json`
-- **Mac/Linux**: `/tmp/claude-session-data.json`
+**Previous versions (v2.2.0 and earlier)** required manual token updates via Node.js commands.
 
-**Update Command (works from any directory):**
+**v2.3.0+** is fully automatic - just use Claude Code normally and the extension tracks everything!
+
+### Legacy: Manual Tracking (v2.2.0 and earlier)
+
+<details>
+<summary>Click to view legacy manual tracking instructions (not needed in v2.3.0+)</summary>
+
+**Note:** These instructions are for historical reference only. v2.3.0+ handles tracking automatically.
+
+In older versions, you had to manually update token usage:
+
 ```bash
-node -e "const os=require('os');const path=require('path');const fs=require('fs');const file=path.join(os.tmpdir(),'claude-session-data.json');const data=JSON.parse(fs.readFileSync(file));data.sessions[data.sessions.length-1].tokenUsage.current=CURRENT_TOKENS;data.sessions[data.sessions.length-1].tokenUsage.remaining=200000-CURRENT_TOKENS;data.sessions[data.sessions.length-1].tokenUsage.lastUpdate=new Date().toISOString();data.totals.totalTokensUsed=data.sessions.reduce((sum,s)=>sum+(s.tokenUsage.current||0),0);fs.writeFileSync(file,JSON.stringify(data,null,2))"
+# Start new session (v2.2.0)
+node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().startSession('Description')"
+
+# Update tokens manually (v2.2.0)
+node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().updateTokens(CURRENT_TOKENS,200000)"
 ```
 
-Replace `CURRENT_TOKENS` with the actual number from the system warning.
+**This is no longer necessary in v2.3.0+** - the extension monitors JSONL files automatically!
 
-### Example Workflow
+</details>
 
-**Day 1 - New Claude Code Conversation:**
-1. Start new chat in Claude Code
-2. **Run:** `node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().startSession('Implementing resilient data fetching').then(s=>console.log('Started:',s.sessionId))"`
-3. You make tool calls (Read, Edit, Bash, etc.)
-4. System shows: `<system_warning>Token usage: 48801/200000; 151199 remaining</system_warning>`
-5. **IMMEDIATELY run:**
-   ```bash
-   node -e "const {SessionTracker}=require('./src/sessionTracker');new SessionTracker().updateTokens(48801,200000)"
-   ```
-6. Continue working, updating tokens after each response
+### Migration from v2.2.0 to v2.3.0
 
-**Later - VS Code Reload (same conversation):**
-7. You reload VS Code or the extension
-8. **DO NOT start a new session** - you're still in the same Claude Code conversation
-9. Continue updating tokens as before
+If you're upgrading from v2.2.0:
+- Remove any manual token update commands from your workflow
+- The extension will automatically start tracking when you use Claude Code
+- Historical session data from `claude-session-data.json` is preserved
+- JSONL monitoring works alongside (not replacing) Claude.ai web scraping
 
-**Day 2 - New Claude Code Conversation:**
-10. Start new chat in Claude Code
-11. **Run:** Start new session command again (step 2)
-12. Tokens reset to 0 for this new conversation
+### Troubleshooting
 
-### When to Update Tokens
+**Not seeing token updates?**
+1. Check "Claude Usage - Token Monitor" output channel for diagnostic logs
+2. Verify Claude Code is saving to `~/.claude/projects/` directory
+3. Ensure file watcher has permissions to read the directory
+4. Check that JSONL files exist and contain usage data
 
-- ✅ After every response with tool calls
-- ✅ After reading/writing multiple files
-- ✅ After running bash commands
-- ✅ At major milestones in the conversation
-- ❌ Don't wait until end of conversation
-- ❌ Don't skip "small" tool calls
-
-### When to Start New Session
-
-- ✅ At the START of a new Claude Code conversation (new chat)
-- ✅ When beginning a completely new development task
-- ❌ **NOT** when reloading VS Code
-- ❌ **NOT** when extension activates/deactivates
-- ❌ **NOT** in the middle of an ongoing conversation
-
-### Why This Matters
-
-The extension you're developing displays these token stats in the VS Code status bar. Keeping this file updated ensures:
-- Real-time token usage visibility
-- Accurate per-conversation session tracking
-- Testing of the extension's own functionality
-- Historical record of token usage per development session
+**Want to see what's being tracked?**
+- Open Command Palette (Ctrl+Shift+P)
+- Run "Developer: Show Logs"
+- Select "Extension Host" to see extension logs
+- Look for "Token usage from JSONL" messages
