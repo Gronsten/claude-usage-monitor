@@ -235,8 +235,11 @@ async function activate(context) {
         }, 2000); // Wait 2 seconds after activation
     }
 
-    // Set up fixed 5-minute interval for usage checks
-    const autoRefreshMinutes = config.get('autoRefreshMinutes', 5);
+    // Set up auto-refresh interval for usage checks
+    let autoRefreshMinutes = config.get('autoRefreshMinutes', 5);
+    // Validate and clamp to 1-60 minute range
+    autoRefreshMinutes = Math.max(1, Math.min(60, autoRefreshMinutes));
+
     if (autoRefreshMinutes > 0) {
         autoRefreshTimer = setInterval(async () => {
             try {
@@ -262,7 +265,9 @@ async function activate(context) {
 
                 // Restart with new configuration
                 const newConfig = vscode.workspace.getConfiguration('claudeUsage');
-                const newAutoRefresh = newConfig.get('autoRefreshMinutes', 5);
+                let newAutoRefresh = newConfig.get('autoRefreshMinutes', 5);
+                // Validate and clamp to 1-60 minute range
+                newAutoRefresh = Math.max(1, Math.min(60, newAutoRefresh));
 
                 if (newAutoRefresh > 0) {
                     autoRefreshTimer = setInterval(async () => {

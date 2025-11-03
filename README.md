@@ -19,7 +19,7 @@ Monitor your Claude.ai chat usage directly in VS Code. This extension uses direc
   - Color-coded indicators for both metrics
 - **Status Bar Integration**: See both percentages at a glance (e.g., "Claude: 45% | Tokens: 26%")
 - **Tree View Panel**: Detailed usage information in a dedicated side panel
-- **Fixed 5-Minute Refresh**: Simple, reliable refresh every 5 minutes
+- **Configurable Auto-Refresh**: Customizable refresh interval (1-60 minutes, default 5 minutes)
 - **Usage Level Indicator**: Shows how much "Claude time" remains (Idle/Light/Moderate/Heavy)
   - Based on max of Claude.ai usage % or session token %
   - Idle (0-24%): Plenty of Claude time! | Light (25-49%): Quarter+ used
@@ -57,9 +57,9 @@ The extension will **automatically fetch usage data** when VS Code starts. If yo
 
 **That's it!** The extension will now:
 - Fetch usage automatically on startup
-- Refresh every 5 minutes (configurable)
+- Refresh at your configured interval (default: every 5 minutes, range: 1-60 minutes)
 - Display both Claude.ai and session token usage
-- Show your coding activity level
+- Show your usage level
 - Run completely hidden unless login is required
 
 ## Usage
@@ -85,7 +85,7 @@ There are several ways to fetch your usage data:
     - Usage percentage
     - Reset time
     - Last update timestamp
-    - **Activity level and next refresh interval** (e.g., "Heavy (5 min refresh)")
+    - Usage level (Idle/Light/Moderate/Heavy)
 
 - **Tree View Panel**: Shows detailed information:
   - Usage percentage
@@ -106,32 +106,27 @@ Open VS Code Settings and search for "Claude Usage" to configure:
 - **Default**: `true` ✅
 - **Description**: Run browser in headless (hidden) mode. Browser will show automatically if login is needed.
 
-### `claudeUsage.activityBasedRefresh` 🆕
-- **Type**: Boolean
-- **Default**: `true` ✅
-- **Description**: Automatically adjust refresh rate based on coding activity (5-60 minutes). Disable to use fixed interval.
-
 ### `claudeUsage.autoRefreshMinutes`
 - **Type**: Number
-- **Default**: `15`
-- **Description**: Fixed auto-refresh interval in minutes (only used when Activity-Based Refresh is disabled)
+- **Default**: `5`
+- **Range**: `1-60` minutes
+- **Description**: Auto-refresh interval in minutes for checking Claude.ai usage and session token data
 
 **Recommended Configuration** (`settings.json`):
 ```json
 {
   "claudeUsage.fetchOnStartup": true,
   "claudeUsage.headless": true,
-  "claudeUsage.activityBasedRefresh": true
+  "claudeUsage.autoRefreshMinutes": 5
 }
 ```
 
-**For Fixed Interval Instead** (`settings.json`):
+**Example: Custom Refresh Interval** (`settings.json`):
 ```json
 {
   "claudeUsage.fetchOnStartup": true,
   "claudeUsage.headless": true,
-  "claudeUsage.activityBasedRefresh": false,
-  "claudeUsage.autoRefreshMinutes": 30
+  "claudeUsage.autoRefreshMinutes": 15
 }
 ```
 
@@ -144,15 +139,12 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 ## How It Works
 
-### Smart Activity Detection
-The extension monitors your VS Code activity to optimize refresh timing:
-- Tracks text edits, file saves, and editor changes
-- Calculates activity level every 15 minutes
-- Adjusts refresh rate automatically:
-  - **Heavy coding**: 5-minute intervals
-  - **Moderate work**: 15-minute intervals
-  - **Light activity**: 30-minute intervals
-  - **Idle/break**: 60-minute intervals
+### Automatic Refresh
+The extension automatically refreshes usage data at configurable intervals:
+- Default: Every 5 minutes
+- Customizable: 1-60 minute range
+- Updates both Claude.ai usage and session token data
+- Runs silently in the background
 
 ### Headless Browser Operation
 1. The extension uses Puppeteer to launch a Chromium browser
@@ -221,9 +213,8 @@ The extension monitors your VS Code activity to optimize refresh timing:
 
 **Solutions**:
 - `headless` mode is enabled by default - browser runs hidden
-- Activity-based refresh automatically reduces frequency when idle
 - The browser closes automatically after fetching to save memory
-- If using fixed interval, increase `autoRefreshMinutes` to reduce frequency
+- Increase `autoRefreshMinutes` to reduce refresh frequency (e.g., 15, 30, or 60 minutes)
 
 ## Known Limitations
 

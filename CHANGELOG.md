@@ -2,6 +2,20 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.3.5] - 2025-11-03
+
+### Improved
+- **Enhanced Auto-Refresh Configuration**: Added validation and range constraints to refresh interval setting
+  - Enforced 1-60 minute valid range with JSON schema constraints (`minimum` and `maximum`)
+  - Added runtime validation to clamp values within valid range
+  - Updated setting description to clearly indicate valid range
+  - Prevents invalid configuration values from breaking the extension
+
+### Changed
+- Updated README.md to reflect accurate configuration defaults and valid ranges
+- Cleaned up documentation references to removed activity-based refresh feature
+- Improved configuration examples with clearer guidance
+
 ## [2.3.0] - 2025-10-24
 
 ### Added
