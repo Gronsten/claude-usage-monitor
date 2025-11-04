@@ -2,7 +2,7 @@
   "name": "claude-session-usage",
   "displayName": "Claude Session Usage",
   "description": "Monitor your Claude.ai usage directly in VS Code with fast API access and session tracking",
-  "version": "2.3.5",
+  "version": "2.3.6",
   "publisher": "Gronsten",
   "author": {
     "name": "Mark Campbell",
@@ -17,11 +17,16 @@
   },
   "homepage": "https://github.com/Gronsten/claude-usage-monitor#readme",
   "license": "MIT",
+  "icon": "icons/claude-usage-icon.png",
   "engines": {
     "vscode": "^1.80.0"
   },
-  "categories": ["Other"],
-  "activationEvents": ["onStartupFinished"],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
@@ -51,7 +56,7 @@
         {
           "id": "claude-usage",
           "title": "Claude Usage",
-          "icon": "$(pulse)"
+          "icon": "icons/claude-usage-tree-icon.svg"
         }
       ]
     },
