@@ -1,0 +1,10 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Terminal/code bracket -->
+  <path d="M 4 3 L 1.5 8 L 4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M 8 3 L 10.5 8 L 8 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Simple bar chart metrics -->
+  <rect x="11.5" y="9" width="1.2" height="4" rx="0.3" fill="currentColor"/>
+  <rect x="13" y="7" width="1.2" height="6" rx="0.3" fill="currentColor"/>
+  <rect x="14.5" y="5" width="1.2" height="8" rx="0.3" fill="currentColor"/>
+</svg>
