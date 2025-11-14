@@ -1,6 +1,6 @@
 # Claude Usage Monitor
 
-Monitor your Claude.ai chat usage directly in VS Code. This extension uses direct API access (with intelligent fallback to web scraping) to fetch your current usage percentage and reset time from Claude.ai.
+Monitor your Claude usage from both Claude.ai web client and Claude Code sessions directly in VS Code. This extension tracks web usage via direct API access (with intelligent fallback to web scraping) and monitors Claude Code token consumption through intelligent session tracking that automatically detects usage from your active conversation, even when multiple conversations are open.
 
 ## Features
 
