@@ -2,6 +2,28 @@
 
 Monitor your Claude usage from both Claude.ai web client and Claude Code sessions directly in VS Code. This extension tracks web usage via direct API access (with intelligent fallback to web scraping) and monitors Claude Code token consumption through intelligent session tracking that automatically detects usage from your active conversation, even when multiple conversations are open.
 
+## Screenshots
+
+### Status Bar Integration
+![Status Bar](screenshots/status-bar.png)
+
+Dual usage display showing both Claude.ai web usage and Claude Code token consumption at a glance.
+
+### Detailed Tooltip
+![Hover Tooltip](screenshots/tooltip.png)
+
+Hover over the status bar for detailed usage information including reset times and usage levels.
+
+### Tree View Panel
+![Tree View Panel](screenshots/tree-view.png)
+
+Dedicated activity bar panel with comprehensive usage metrics for both 5-hour and 7-day windows.
+
+### Configuration Settings
+![Settings](screenshots/settings.png)
+
+Simple configuration options for auto-refresh intervals and behavior customization.
+
 ## Features
 
 - **Direct API Access** 🚀: Fast, reliable data retrieval using Claude.ai's internal API
