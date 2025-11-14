@@ -2,6 +2,15 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.3.7] - 2025-11-14
+
+### Documentation
+- **Enhanced Description**: Updated extension description to highlight dual monitoring capabilities
+  - Short description now explicitly mentions both web usage and Claude Code token consumption
+  - README opening paragraph enhanced to explain intelligent session tracking
+  - Clarified that token tracking automatically detects usage from active conversation, even when multiple conversations are open
+  - Improved visibility of real-time tracking capabilities
+
 ## [2.3.5] - 2025-11-03
 
 ### Improved
