@@ -2,6 +2,17 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.3.8] - 2025-11-14
+
+### Added
+- **Screenshots**: Added visual documentation to README and Marketplace listing
+  - Status bar integration screenshot showing dual usage display
+  - Detailed tooltip screenshot with usage information
+  - Tree view panel screenshot with comprehensive metrics
+  - Configuration settings screenshot
+  - New `screenshots/` directory with all marketing images
+  - Enhanced README with Screenshots section for better user onboarding
+
 ## [2.3.7] - 2025-11-14
 
 ### Documentation
