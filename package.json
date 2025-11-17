@@ -2,7 +2,7 @@
   "name": "claude-session-usage",
   "displayName": "Claude Session Usage",
   "description": "Monitor Claude.ai web usage and Claude Code token consumption directly in VS Code with real-time tracking",
-  "version": "2.3.8",
+  "version": "2.3.9",
   "publisher": "Gronsten",
   "author": {
     "name": "Mark Campbell",
@@ -18,6 +18,9 @@
   "homepage": "https://github.com/Gronsten/claude-usage-monitor#readme",
   "license": "MIT",
   "icon": "icons/claude-usage-icon.png",
+  "sponsor": {
+    "url": "https://github.com/sponsors/Gronsten"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },

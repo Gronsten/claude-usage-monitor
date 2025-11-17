@@ -2,6 +2,23 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.3.9] - 2025-11-17
+
+### Added
+- **GitHub Sponsors Integration**: Added sponsor support across the extension
+  - Added `.github/FUNDING.yml` for automatic sponsor button on GitHub repo
+  - Added sponsor badge to README (social style badge at top)
+  - Added `sponsor` field to package.json for VS Code Marketplace sponsor button
+
+### Documentation
+- **README Visual Enhancements**: Improved README presentation with modern features
+  - Added colorful GitHub alert callouts (TIP and NOTE boxes)
+  - TIP box highlights v2.3.8 screenshots feature
+  - NOTE box explains dual monitoring capability (web + Claude Code)
+  - Added Demo section with placeholder for future demo.gif
+  - Created `assets/` directory with instructions for demo GIF creation
+  - Enhanced visibility of key features and extension capabilities
+
 ## [2.3.8] - 2025-11-14
 
 ### Added
