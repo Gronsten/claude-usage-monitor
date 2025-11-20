@@ -65,36 +65,39 @@ class UsageDataProvider {
       hour12: true,
     });
 
-    // Determine usage level for icon
-    let usageLevel = "normal";
-    if (this.usageData.usagePercent >= 90) {
-      usageLevel = "critical";
-    } else if (this.usageData.usagePercent >= 80) {
-      usageLevel = "warning";
-    }
-
-    const items = [
-      new UsageTreeItem(
-        "Session usage",
-        `${this.usageData.usagePercent}%`,
-        vscode.TreeItemCollapsibleState.None,
-        usageLevel
-      ),
-    ];
-
-    // Add single-line sparkline for usage activity (24 chars × 10 min = 4 hours)
+    // Add single-line sparkline for usage activity (16 chars × 3 data points = 48 min)
     const sparklineData = await this.usageHistory.getFiveHourSparkline(
-      24,
-      2,
+      16,
+      3,
       false // Use single-line block characters
     );
 
-    items.push(
+    const items = [
       new UsageTreeItem(
         sparklineData,  // Use sparkline as label (no value = no colon)
         "",  // Empty value
         vscode.TreeItemCollapsibleState.None,
         "graph"
+      )
+    ];
+
+    // Determine usage level for icon (matches activityMonitor thresholds)
+    let usageLevel = "normal";
+    if (this.usageData.usagePercent >= 80) {
+      usageLevel = "critical";  // Heavy: 80-100%
+    } else if (this.usageData.usagePercent >= 50) {
+      usageLevel = "warning";   // Moderate: 50-79%
+    } else if (this.usageData.usagePercent >= 25) {
+      usageLevel = "info";      // Light: 25-49%
+    }
+    // else: normal (idle: 0-24%)
+
+    items.push(
+      new UsageTreeItem(
+        "Session usage",
+        `${this.usageData.usagePercent}%`,
+        vscode.TreeItemCollapsibleState.None,
+        usageLevel
       )
     );
 
@@ -117,13 +120,16 @@ class UsageDataProvider {
           100
       );
 
-      // Determine token usage level for icon
+      // Determine token usage level for icon (matches activityMonitor thresholds)
       let tokenUsageLevel = "normal";
-      if (tokenPercent >= 90) {
-        tokenUsageLevel = "critical";
-      } else if (tokenPercent >= 80) {
-        tokenUsageLevel = "warning";
+      if (tokenPercent >= 80) {
+        tokenUsageLevel = "critical";  // Heavy: 80-100%
+      } else if (tokenPercent >= 50) {
+        tokenUsageLevel = "warning";   // Moderate: 50-79%
+      } else if (tokenPercent >= 25) {
+        tokenUsageLevel = "info";      // Light: 25-49%
       }
+      // else: normal (idle: 0-24%)
 
       items.push(
         new UsageTreeItem(
@@ -294,6 +300,11 @@ class UsageTreeItem extends vscode.TreeItem {
         this.iconPath = new vscode.ThemeIcon("graph-line");
         break;
       case "info":
+        this.iconPath = new vscode.ThemeIcon(
+          "info",
+          new vscode.ThemeColor("editorInfo.foreground")
+        );
+        break;
       default:
         this.iconPath = new vscode.ThemeIcon("info");
         break;

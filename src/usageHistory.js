@@ -10,7 +10,7 @@ class UsageHistory {
     constructor(historyFilePath) {
         // Store in OS temp directory alongside session-data.json
         this.historyFilePath = historyFilePath || path.join(os.tmpdir(), 'claude-usage-history.json');
-        this.maxDataPoints = 48; // Keep last 48 data points (4 hours at 5-min intervals)
+        this.maxDataPoints = 96; // Keep last 96 data points (8 hours at 5-min intervals)
     }
 
     /**
