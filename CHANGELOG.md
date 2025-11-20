@@ -2,6 +2,29 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.4.0] - 2025-11-20
+
+### Added
+- **Activity Sparkline Graph**: Added 16-character sparkline showing usage activity over last 48 minutes
+  - Displays actual usage deltas (changes between data points) rather than cumulative percentages
+  - Shows when you're actively using Claude with visual intensity bars
+  - Positioned at top of tree view for quick visibility
+  - Uses 3-point aggregation for smooth activity visualization
+  - Automatically updates as new data is collected
+
+### Changed
+- **Tree View Icon Thresholds**: Aligned tree view usage icons with status bar thresholds
+  - Critical (red): >= 80% (was >= 90%)
+  - Warning (yellow): >= 50% (was >= 80%)
+  - Info (blue): >= 25% (new tier)
+  - Normal (green): < 25% (was < 80%)
+  - Session usage and token usage both use same 4-tier system as status bar
+  - Info icon now uses `editorInfo.foreground` theme color for consistency
+
+### Improved
+- **Historical Data Storage**: Increased from 48 to 96 data points (4 hours to 8 hours)
+- **Data Retention**: Better preservation of historical data across extension reloads
+
 ## [2.3.9] - 2025-11-17
 
 ### Added

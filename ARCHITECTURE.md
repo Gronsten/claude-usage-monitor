@@ -343,7 +343,7 @@ Response:
 ```
 Claude Usage
 ├── 📊 Usage (5-hour): 45%
-│   ├── 📈 Sparkline: ▁▂▃▅▆▇█▇
+│   ├── 📈 Sparkline: ▁▁▂▂▃▃▄▅▅▆▆▇▇█▇▆▆▅▅▄▃▃▂▂ (4 hours)
 │   └── ⏰ Resets in: 2h 30m (14:30)
 ├── 📊 Usage (7-day): 78%
 │   ├── 📈 Sparkline: ▂▃▄▅▆▇██
@@ -545,11 +545,12 @@ function generateSparkline(values) {
 }
 ```
 
-**Example Output**: `▁▂▃▅▆▇█▇` (8 data points showing trend)
+**Example Output**: `▁▁▂▂▃▃▄▅▅▆▆▇▇█▇▆▆▅▅▄▃▃▂▂` (24 chars, 4-hour trend)
 
 **Data Retention**:
-- Max data points: 24 (2 hours at 5-minute intervals)
-- Auto-cleanup removes points older than 24 entries
+- Max data points: 48 (4 hours at 5-minute intervals)
+- Sparkline display: 24 characters (each representing 10 minutes via 2-point average)
+- Auto-cleanup removes points older than 48 entries
 - Persisted across VS Code restarts
 
 ---
