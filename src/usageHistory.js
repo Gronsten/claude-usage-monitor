@@ -10,7 +10,7 @@ class UsageHistory {
     constructor(historyFilePath) {
         // Store in OS temp directory alongside session-data.json
         this.historyFilePath = historyFilePath || path.join(os.tmpdir(), 'claude-usage-history.json');
-        this.maxDataPoints = 24; // Keep last 24 data points (2 hours at 5-min intervals)
+        this.maxDataPoints = 48; // Keep last 48 data points (4 hours at 5-min intervals)
     }
 
     /**
@@ -114,18 +114,27 @@ class UsageHistory {
 
     /**
      * Get sparkline for 5-hour usage history
-     * @param {number} count - Number of data points to include
+     * @param {number} count - Number of sparkline characters to generate
+     * @param {number} aggregateSize - Number of data points to average per character (default 2 for 10-min intervals)
      * @returns {Promise<string>}
      */
-    async getFiveHourSparkline(count = 8) {
-        const dataPoints = await this.getRecentDataPoints(count);
+    async getFiveHourSparkline(count = 24, aggregateSize = 2) {
+        const totalPointsNeeded = count * aggregateSize;
+        const dataPoints = await this.getRecentDataPoints(totalPointsNeeded);
 
         if (dataPoints.length === 0) {
-            return '▁▁▁▁▁▁▁▁'; // Not enough data yet
+            return '▁'.repeat(count); // Not enough data yet
         }
 
-        const values = dataPoints.map(dp => dp.fiveHour);
-        return this.generateSparkline(values);
+        // Aggregate data points by averaging pairs (or groups)
+        const aggregatedValues = [];
+        for (let i = 0; i < dataPoints.length; i += aggregateSize) {
+            const chunk = dataPoints.slice(i, i + aggregateSize);
+            const average = chunk.reduce((sum, dp) => sum + dp.fiveHour, 0) / chunk.length;
+            aggregatedValues.push(average);
+        }
+
+        return this.generateSparkline(aggregatedValues);
     }
 
     /**

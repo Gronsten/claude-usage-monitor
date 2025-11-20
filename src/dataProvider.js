@@ -80,8 +80,8 @@ class UsageDataProvider {
             )
         ];
 
-        // Add sparkline for 5-hour usage history
-        const fiveHourSparkline = await this.usageHistory.getFiveHourSparkline(8);
+        // Add sparkline for 5-hour usage history (24 chars × 10 min = 4 hours)
+        const fiveHourSparkline = await this.usageHistory.getFiveHourSparkline(24, 2);
         items.push(
             new UsageTreeItem(
                 '  ',
