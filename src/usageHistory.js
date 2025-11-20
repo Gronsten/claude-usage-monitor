@@ -81,7 +81,58 @@ class UsageHistory {
     }
 
     /**
-     * Generate ASCII sparkline from data points
+     * Generate Braille sparkline from data points (two-line cohesive graph)
+     * @param {Array<number>} values - Array of numeric values (0-100)
+     * @returns {Object} Object with topLine and bottomLine strings
+     */
+    generateBrailleSparkline(values) {
+        if (!values || values.length === 0) {
+            const emptyLength = 24;
+            return {
+                topLine: '⠀'.repeat(emptyLength),
+                bottomLine: '⠀'.repeat(emptyLength)
+            };
+        }
+
+        // Braille vertical bar patterns (each represents height 0-8 in that line)
+        // Bottom line (dots 1-8): bottom half of graph (0-50%)
+        const bottomPatterns = ['⠀', '⠁', '⠃', '⠇', '⡇', '⡗', '⡷', '⡿', '⣿'];
+
+        // Top line (dots 1-8): top half of graph (50-100%)
+        const topPatterns = ['⠀', '⢀', '⢠', '⢰', '⢸', '⣀', '⣠', '⣰', '⣸'];
+
+        const topLine = [];
+        const bottomLine = [];
+
+        values.forEach(value => {
+            // Clamp value to 0-100
+            const clampedValue = Math.max(0, Math.min(100, value));
+
+            // Map to 0-16 range (8 levels in each line)
+            const totalHeight = (clampedValue / 100) * 16;
+
+            if (totalHeight <= 8) {
+                // Only bottom line shows (0-50%)
+                const bottomIndex = Math.floor(totalHeight);
+                topLine.push('⠀');  // Empty
+                bottomLine.push(bottomPatterns[bottomIndex]);
+            } else {
+                // Both lines show (50-100%)
+                bottomLine.push('⣿');  // Full bottom
+                const topHeight = totalHeight - 8;
+                const topIndex = Math.floor(topHeight);
+                topLine.push(topPatterns[topIndex]);
+            }
+        });
+
+        return {
+            topLine: topLine.join(''),
+            bottomLine: bottomLine.join('')
+        };
+    }
+
+    /**
+     * Generate ASCII sparkline from data points (legacy single-line)
      * @param {Array<number>} values - Array of numeric values (0-100)
      * @returns {string} ASCII sparkline
      */
@@ -113,28 +164,50 @@ class UsageHistory {
     }
 
     /**
-     * Get sparkline for 5-hour usage history
+     * Get sparkline for 5-hour usage history showing actual usage activity
      * @param {number} count - Number of sparkline characters to generate
      * @param {number} aggregateSize - Number of data points to average per character (default 2 for 10-min intervals)
-     * @returns {Promise<string>}
+     * @param {boolean} useBraille - Use two-line Braille sparkline (default true)
+     * @returns {Promise<string|Object>} String for single-line, Object with topLine/bottomLine for Braille
      */
-    async getFiveHourSparkline(count = 24, aggregateSize = 2) {
+    async getFiveHourSparkline(count = 24, aggregateSize = 2, useBraille = true) {
         const totalPointsNeeded = count * aggregateSize;
         const dataPoints = await this.getRecentDataPoints(totalPointsNeeded);
 
         if (dataPoints.length === 0) {
+            if (useBraille) {
+                return {
+                    topLine: '⠀'.repeat(count),
+                    bottomLine: '⠀'.repeat(count)
+                };
+            }
             return '▁'.repeat(count); // Not enough data yet
         }
 
-        // Aggregate data points by averaging pairs (or groups)
-        const aggregatedValues = [];
-        for (let i = 0; i < dataPoints.length; i += aggregateSize) {
-            const chunk = dataPoints.slice(i, i + aggregateSize);
-            const average = chunk.reduce((sum, dp) => sum + dp.fiveHour, 0) / chunk.length;
-            aggregatedValues.push(average);
+        // Calculate deltas (change in usage between consecutive points)
+        // This shows actual activity rather than cumulative percentage
+        const deltas = [];
+        for (let i = 1; i < dataPoints.length; i++) {
+            const delta = dataPoints[i].fiveHour - dataPoints[i - 1].fiveHour;
+            deltas.push(Math.max(0, delta)); // Only show positive deltas (actual usage)
         }
 
-        return this.generateSparkline(aggregatedValues);
+        // Aggregate deltas by summing pairs (or groups) to get usage per time period
+        const aggregatedValues = [];
+        for (let i = 0; i < deltas.length; i += aggregateSize) {
+            const chunk = deltas.slice(i, i + aggregateSize);
+            const sum = chunk.reduce((total, delta) => total + delta, 0);
+            aggregatedValues.push(sum);
+        }
+
+        // Normalize to 0-100 range for display
+        const maxDelta = Math.max(...aggregatedValues, 1); // Avoid divide by zero
+        const normalizedValues = aggregatedValues.map(v => (v / maxDelta) * 100);
+
+        if (useBraille) {
+            return this.generateBrailleSparkline(normalizedValues);
+        }
+        return this.generateSparkline(normalizedValues);
     }
 
     /**
