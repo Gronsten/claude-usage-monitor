@@ -2,6 +2,20 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.5.0] - 2025-11-24
+
+### Added
+- **esbuild Bundling**: Extension is now bundled using esbuild for improved performance
+  - Significantly reduced package size by bundling all dependencies
+  - Faster extension loading and activation
+  - Production builds are minified for optimal performance
+  - Added build scripts: `npm run build`, `npm run watch`, `npm run package`
+
+### Changed
+- Main entry point changed from `./extension.js` to `./dist/extension.js` (bundled output)
+- Updated `.vscodeignore` to exclude source files and include only bundled output
+- Added Development section to README with build instructions and project structure
+
 ## [2.4.0] - 2025-11-20
 
 ### Added

@@ -2,7 +2,7 @@
   "name": "claude-session-usage",
   "displayName": "Claude Session Usage",
   "description": "Monitor Claude.ai web usage and Claude Code token consumption directly in VS Code with real-time tracking",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "publisher": "Gronsten",
   "author": {
     "name": "Mark Campbell",
@@ -30,7 +30,13 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./extension.js",
+  "main": "./dist/extension.js",
+  "scripts": {
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "package": "node esbuild.js --production && vsce package",
+    "publish": "node esbuild.js --production && vsce publish"
+  },
   "contributes": {
     "commands": [
       {
@@ -98,6 +104,7 @@
     "puppeteer": "^24.15.0"
   },
   "devDependencies": {
-    "@types/vscode": "^1.80.0"
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.27.0"
   }
 }

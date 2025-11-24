@@ -11,3 +11,13 @@ vsc-extension-quickstart.md
 !CHANGELOG.md
 TESTING.md
 QUICKSTART.md
+# Build files
+esbuild.js
+src/**
+extension.js
+cleanup-browser.js
+# Exclude node_modules since we bundle everything
+node_modules/**
+!node_modules/.bin
+# Keep only the bundled output
+!dist/**
