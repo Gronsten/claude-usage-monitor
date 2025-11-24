@@ -16,5 +16,8 @@ esbuild.js
 src/**
 extension.js
 cleanup-browser.js
+# Exclude node_modules since we bundle everything
+node_modules/**
+!node_modules/.bin
 # Keep only the bundled output
 !dist/**
