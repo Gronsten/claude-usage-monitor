@@ -7,8 +7,8 @@ After packaging a new .vsix version, **ALWAYS** move the old .vsix files to the 
 
 ### Commands
 ```bash
-# Package new version
-vsce package
+# Build and package new version
+npm run package
 
 # Move old versions to archive
 mv *.vsix archive/  # Move all but keep the latest one out
@@ -39,7 +39,7 @@ claude-usage/
 1. Make changes and test
 2. Update version in package.json
 3. Update CHANGELOG.md
-4. Run `vsce package`
+4. Run `npm run package` (builds with esbuild + packages)
 5. **Move previous .vsix file(s) to archive/**
 6. Test the new .vsix installation
 7. Commit and push changes

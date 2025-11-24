@@ -74,13 +74,13 @@ Press `Ctrl+,` to open settings and search for "Claude Usage":
 
 ### Install VSCE (VS Code Extension Manager)
 ```bash
-npm install -g @vscode/vsce
+npm install -g @vscode/vsce  # Only needed for manual vsce commands
 ```
 
 ### Create VSIX Package
 ```bash
 cd vscode-extensions/claude-usage
-vsce package
+npm run package
 ```
 
 This creates `claude-usage-monitor-1.0.0.vsix`
@@ -109,10 +109,10 @@ This creates `claude-usage-monitor-1.0.0.vsix`
 npm install
 
 # Package extension
-vsce package
+npm run package
 
 # Publish to marketplace (requires publisher account)
-vsce publish
+npm run publish
 ```
 
 ## 🎯 Key Files Explained

@@ -945,7 +945,7 @@ vscode.workspace.onDidChangeConfiguration(e => {
 - Added: New feature description
 
 # 3. Package the extension
-vsce package
+npm run package
 
 # 4. Move old .vsix to archive
 mv claude-session-usage-2.3.9.vsix archive/
