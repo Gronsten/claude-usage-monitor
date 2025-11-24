@@ -1,7 +1,7 @@
 # Claude Usage Monitor - Architecture Guide
 
-**Version:** 2.3.9
-**Last Updated:** 2025-11-19
+**Version:** 2.5.0
+**Last Updated:** 2025-11-24
 **Purpose:** Technical architecture reference for Claude AI assistant sessions
 
 ---
@@ -16,8 +16,9 @@
 6. [Configuration System](#configuration-system)
 7. [External Dependencies](#external-dependencies)
 8. [Performance Characteristics](#performance-characteristics)
-9. [Common Development Patterns](#common-development-patterns)
-10. [Troubleshooting Guide](#troubleshooting-guide)
+9. [Build System (v2.5.0+)](#build-system-v250)
+10. [Common Development Patterns](#common-development-patterns)
+11. [Troubleshooting Guide](#troubleshooting-guide)
 
 ---
 
@@ -36,6 +37,7 @@ A VS Code extension providing **dual monitoring** capabilities for Claude usage:
 3. **Progressive Enhancement** - Status bar → Tooltip → Tree view (increasing detail)
 4. **Resilient Architecture** - Each data source fails independently without breaking the other
 5. **Performance Optimized** - API-first with HTML fallback, minimal resource usage
+6. **Bundled Distribution** - esbuild bundling for 85% smaller package size (v2.5.0+)
 
 ### Key Stats
 
@@ -51,9 +53,10 @@ A VS Code extension providing **dual monitoring** capabilities for Claude usage:
 
 ```
 /root/vscode-extensions/claude-usage/
-├── extension.js                     # Main entry point (309 lines)
+├── extension.js                     # Main entry point (309 lines) - SOURCE
+├── esbuild.js                       # Build configuration for bundling (46 lines)
 ├── cleanup-browser.js               # Browser lock file cleanup utility (40 lines)
-├── package.json                     # Extension manifest (103 lines)
+├── package.json                     # Extension manifest with build scripts
 ├── package-lock.json                # Dependency lock file
 ├── LICENSE                          # MIT License
 ├── README.md                        # User-facing documentation
@@ -62,7 +65,7 @@ A VS Code extension providing **dual monitoring** capabilities for Claude usage:
 ├── QUICKSTART.md                    # Quick setup guide
 ├── TESTING.md                       # Testing documentation
 │
-├── src/                             # Source modules
+├── src/                             # Source modules (bundled into dist/)
 │   ├── activityMonitor.js          # Usage level calculator (93 lines)
 │   ├── claudeDataLoader.js         # JSONL parser for token data (376 lines)
 │   ├── dataProvider.js             # Tree view data provider (280 lines)
@@ -71,6 +74,10 @@ A VS Code extension providing **dual monitoring** capabilities for Claude usage:
 │   ├── statusBar.js                # Status bar UI (162 lines)
 │   ├── usageHistory.js             # Historical data & sparklines (142 lines)
 │   └── utils.js                    # Shared utilities (38 lines)
+│
+├── dist/                            # Bundled output (published to marketplace)
+│   ├── extension.js                # Bundled entry point (~2.3 MB minified)
+│   └── extension.js.map            # Source map for debugging (~1.9 MB)
 │
 ├── icons/                           # Extension icons
 │   ├── claude-usage-icon.png       # Marketplace icon
@@ -94,9 +101,9 @@ A VS Code extension providing **dual monitoring** capabilities for Claude usage:
 ├── archive/                         # Previous .vsix versions
 │   └── [old versions]
 │
-├── node_modules/                    # Dependencies (Puppeteer)
+├── node_modules/                    # Dependencies (NOT published, bundled instead)
 │
-└── .vscodeignore                    # Files excluded from .vsix
+└── .vscodeignore                    # Excludes src/, extension.js, includes dist/
 ```
 
 ---
@@ -856,6 +863,96 @@ Return: {
 
 ---
 
+## Build System (v2.5.0+)
+
+### esbuild Bundling
+
+Starting with v2.5.0, the extension uses **esbuild** for bundling all source files and dependencies into a single optimized file.
+
+**Benefits**:
+- **85% smaller package**: 1.16 MB (down from 8.06 MB)
+- **Faster loading**: Single bundled file reduces I/O operations
+- **Better performance**: Production builds are minified
+- **Cleaner distribution**: No node_modules in .vsix package
+
+### Build Configuration
+
+**esbuild.js** handles the bundling process:
+
+```javascript
+{
+  entryPoints: ['extension.js'],        // Main entry
+  bundle: true,                         // Bundle all imports
+  format: 'cjs',                        // CommonJS format
+  minify: production,                   // Minify for production
+  sourcemap: !production,               // Source maps for dev
+  platform: 'node',                     // Node.js environment
+  outfile: 'dist/extension.js',        // Output location
+  external: ['vscode', 'typescript']   // Don't bundle these
+}
+```
+
+### Build Scripts
+
+Added to **package.json**:
+
+```json
+{
+  "scripts": {
+    "build": "node esbuild.js",                              // Dev build
+    "watch": "node esbuild.js --watch",                      // Watch mode
+    "package": "node esbuild.js --production && vsce package", // Build + package
+    "publish": "node esbuild.js --production && vsce publish"  // Build + publish
+  }
+}
+```
+
+### Development Workflow
+
+**For development** (with sourcemaps):
+```bash
+npm run build    # One-time build
+npm run watch    # Auto-rebuild on changes
+```
+
+**For packaging**:
+```bash
+npm run package  # Builds with --production (minified) + creates .vsix
+```
+
+**For publishing**:
+```bash
+npm run publish  # Builds with --production + publishes to marketplace
+```
+
+### What Gets Bundled
+
+**Included in bundle**:
+- extension.js and all src/ modules
+- All dependencies from node_modules (except externals)
+- Result: Single dist/extension.js file
+
+**Excluded** (marked as external):
+- `vscode` - Provided by VS Code runtime
+- `typescript` - Optional dependency, not needed at runtime
+
+**Not published** (.vscodeignore):
+- Source files (extension.js, src/)
+- Build configuration (esbuild.js)
+- node_modules/ directory
+- Only dist/ is included in .vsix
+
+### File Size Comparison
+
+| Aspect | Before (v2.4.0) | After (v2.5.0) | Improvement |
+|--------|----------------|----------------|-------------|
+| **Package Size** | 8.06 MB | 1.16 MB | 85% smaller |
+| **File Count** | 3,054 files | 18 files | 99% fewer files |
+| **Build Time** | N/A | 1-2 seconds | Fast builds |
+| **Load Time** | Slower | Faster | Reduced I/O |
+
+---
+
 ## Common Development Patterns
 
 ### 1. Adding a New Command
@@ -938,31 +1035,45 @@ vscode.workspace.onDidChangeConfiguration(e => {
 **Workflow Checklist**:
 ```bash
 # 1. Update version in package.json
-"version": "2.3.10"
+"version": "2.5.1"
 
 # 2. Update CHANGELOG.md
-### v2.3.10 (2025-XX-XX)
+### v2.5.1 (2025-XX-XX)
 - Added: New feature description
 
-# 3. Package the extension
+# 3. Build and package the extension (includes esbuild bundling)
 npm run package
+# This runs: node esbuild.js --production && vsce package
+# Output: claude-session-usage-2.5.1.vsix (bundled, ~1.2 MB)
 
 # 4. Move old .vsix to archive
-mv claude-session-usage-2.3.9.vsix archive/
+mv claude-session-usage-2.5.0.vsix archive/
 
 # 5. Test the new .vsix
-# Install in VS Code and verify
+# Install in VS Code and verify all functionality works
 
-# 6. Commit changes
+# 6. Create feature branch and commit
+git checkout -b feature/my-feature
 git add .
-git commit -S -m "Release v2.3.10"
-git push origin main
+git commit -S -m "Add new feature (v2.5.1)"
+git push -u origin feature/my-feature
 
-# 7. Create GitHub release
-gh release create v2.3.10 --title "v2.3.10 - Feature Name" \
-  --notes "Release notes..." \
-  claude-session-usage-2.3.10.vsix
+# 7. Create and merge PR
+gh pr create --title "..." --body "..." --base main
+# After approval:
+gh pr merge <number> --squash --delete-branch
+
+# 8. Create GitHub release
+git checkout main && git pull --rebase origin main
+gh release create v2.5.1 --title "v2.5.1 - Feature Name" \
+  --notes "Release notes..."
+
+# 9. Publish to marketplace (includes esbuild bundling)
+npm run publish
+# This runs: node esbuild.js --production && vsce publish
 ```
+
+**Note**: v2.5.0+ uses esbuild bundling. Always use `npm run package` or `npm run publish` instead of direct `vsce` commands to ensure bundling happens first.
 
 ### 5. Debugging the Extension
 
