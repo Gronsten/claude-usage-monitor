@@ -189,16 +189,15 @@ Before considering the extension ready:
 - [ ] Error messages are user-friendly
 - [ ] Documentation matches actual behavior
 - [ ] Configuration options all work correctly
-- [ ] Extension can be packaged: `vsce package` (if vsce installed)
+- [ ] Extension can be packaged: `npm run package`
 
 ## Packaging Test
 
-If you have `vsce` installed:
+Package the extension using the npm script:
 
 ```bash
-npm install -g @vscode/vsce
 cd claude-usage
-vsce package
+npm run package
 ```
 
 - [ ] Package creates successfully (creates .vsix file)
