@@ -2,6 +2,16 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.5.1] - 2025-11-25
+
+### Added
+- **Demo GIF**: Added demo.gif to showcase extension features in README and marketplace listing
+  - Displays automatic usage fetching, status bar updates, and detailed usage breakdowns
+  - Visible in VSCode extension details pane, GitHub repository, and marketplace website
+
+### Changed
+- Removed placeholder README.md files from assets and screenshots folders
+
 ## [2.5.0] - 2025-11-24
 
 ### Added
