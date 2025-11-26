@@ -188,23 +188,28 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     }
 
     // --- Token usage ---
-    if (sessionData && sessionData.tokenUsage) {
-        const tokenPercent = Math.round(
-            (sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100
-        );
-        const { icon, color } = getIconAndColor(tokenPercent, warningThreshold, errorThreshold);
+    if (showTokens) {
+        if (sessionData && sessionData.tokenUsage) {
+            const tokenPercent = Math.round(
+                (sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100
+            );
+            const { icon, color } = getIconAndColor(tokenPercent, warningThreshold, errorThreshold);
 
-        if (showTokens) {
             statusBarItems.tokens.text = `${icon ? icon + ' ' : ''}Tk ${tokenPercent}%`;
             statusBarItems.tokens.color = color;
             statusBarItems.tokens.show();
-        }
 
-        // Tooltip (always show)
-        if (tooltipLines.length > 0 && !tooltipLines[tooltipLines.length - 1].startsWith('**Session')) {
-            tooltipLines.push('');
+            // Tooltip (always show)
+            if (tooltipLines.length > 0 && !tooltipLines[tooltipLines.length - 1].startsWith('**Session')) {
+                tooltipLines.push('');
+            }
+            tooltipLines.push(`Tokens: ${sessionData.tokenUsage.current.toLocaleString()} / ${sessionData.tokenUsage.limit.toLocaleString()} (${tokenPercent}%)`);
+        } else {
+            // Show placeholder when no token data
+            statusBarItems.tokens.text = 'Tk -';
+            statusBarItems.tokens.color = undefined;
+            statusBarItems.tokens.show();
         }
-        tooltipLines.push(`Tokens: ${sessionData.tokenUsage.current.toLocaleString()} / ${sessionData.tokenUsage.limit.toLocaleString()} (${tokenPercent}%)`);
     }
 
     // --- Weekly (7d) usage ---

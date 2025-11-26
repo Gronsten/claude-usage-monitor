@@ -2,6 +2,15 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.6.4] - 2025-11-26
+
+### Fixed
+
+- **Token display now always visible**: "Tk" indicator stays in status bar at all times
+  - Shows "Tk -" when no token data available (instead of disappearing)
+  - Shows "Tk X%" when token data is present
+  - Prevents status bar items from flickering in and out
+
 ## [2.6.3] - 2025-11-26
 
 ### Added
