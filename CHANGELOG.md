@@ -2,6 +2,16 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.6.3] - 2025-11-26
+
+### Security
+
+- **Fixed js-yaml prototype pollution vulnerability** (CVE) - Updated transitive dependency js-yaml 4.1.0 → 4.1.1
+
+### Updated
+
+- **Dependencies updated**: puppeteer 24.25.0 → 24.31.0, @types/vscode 1.105.0 → 1.106.1
+
 ## [2.6.2] - 2025-11-26
 
 ### Fixed
