@@ -7,8 +7,61 @@ const os = require('os');
  * Based on approach from other Claude monitoring extensions
  */
 class ClaudeDataLoader {
-    constructor() {
+    constructor(workspacePath = null) {
         this.claudeConfigPaths = this.getClaudeConfigPaths();
+        this.workspacePath = workspacePath;
+        this.projectDirName = workspacePath ? this.convertPathToClaudeDir(workspacePath) : null;
+    }
+
+    /**
+     * Convert a workspace path to Claude's project directory name format
+     * e.g., "/projects/claude-usage-monitor" -> "-projects-claude-usage-monitor"
+     * @param {string} workspacePath - The workspace folder path
+     * @returns {string} Claude's directory name format
+     */
+    convertPathToClaudeDir(workspacePath) {
+        // Claude replaces forward slashes with dashes
+        return workspacePath.replace(/\//g, '-');
+    }
+
+    /**
+     * Set the workspace path for project-specific token tracking
+     * @param {string} workspacePath - The workspace folder path
+     */
+    setWorkspacePath(workspacePath) {
+        this.workspacePath = workspacePath;
+        this.projectDirName = workspacePath ? this.convertPathToClaudeDir(workspacePath) : null;
+        console.log(`📂 ClaudeDataLoader workspace set to: ${workspacePath}`);
+        console.log(`   Project dir name: ${this.projectDirName}`);
+    }
+
+    /**
+     * Get the project-specific data directory for this workspace
+     * @returns {Promise<string|null>} Path to project's JSONL directory or null
+     */
+    async getProjectDataDirectory() {
+        if (!this.projectDirName) {
+            console.log('⚠️ No workspace path set, falling back to global search');
+            return null;
+        }
+
+        const baseDir = await this.findClaudeDataDirectory();
+        if (!baseDir) {
+            return null;
+        }
+
+        const projectDir = path.join(baseDir, this.projectDirName);
+        try {
+            const stat = await fs.stat(projectDir);
+            if (stat.isDirectory()) {
+                console.log(`📂 Found project-specific directory: ${projectDir}`);
+                return projectDir;
+            }
+        } catch (error) {
+            console.log(`⚠️ Project directory not found: ${projectDir}`);
+        }
+
+        return null;
     }
 
     /**
@@ -236,12 +289,21 @@ class ClaudeDataLoader {
      * Strategy: Find the most recently modified JSONL file and extract
      * cache_creation + cache_read from the last assistant message.
      * This represents the total prompt cache size = current session context.
+     *
+     * If a workspace path is set, only looks in that project's directory.
      * @returns {Promise<object>} Current session usage data
      */
     async getCurrentSessionUsage() {
         console.log('🔍 getCurrentSessionUsage() - extracting cache size from most recent message');
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-        const dataDir = await this.findClaudeDataDirectory();
+
+        // Try project-specific directory first, fall back to global
+        let dataDir = await this.getProjectDataDirectory();
+        const isProjectSpecific = !!dataDir;
+
+        if (!dataDir) {
+            dataDir = await this.findClaudeDataDirectory();
+        }
 
         if (!dataDir) {
             console.log('❌ Claude data directory not found');
@@ -251,14 +313,15 @@ class ClaudeDataLoader {
                 outputTokens: 0,
                 cacheCreationTokens: 0,
                 cacheReadTokens: 0,
-                messageCount: 0
+                messageCount: 0,
+                isActive: false
             };
         }
 
         try {
-            // Find ALL JSONL files recursively
+            // Find JSONL files (project-specific if workspace is set)
             const allJsonlFiles = await this.findJsonlFiles(dataDir);
-            console.log(`📁 Found ${allJsonlFiles.length} total JSONL files`);
+            console.log(`📁 Found ${allJsonlFiles.length} JSONL files in ${isProjectSpecific ? 'project' : 'global'} directory`);
 
             // Filter to files modified in last 5 minutes (active conversation)
             const recentFiles = [];
@@ -289,7 +352,8 @@ class ClaudeDataLoader {
                     outputTokens: 0,
                     cacheCreationTokens: 0,
                     cacheReadTokens: 0,
-                    messageCount: 0
+                    messageCount: 0,
+                    isActive: false
                 };
             }
 
@@ -346,7 +410,8 @@ class ClaudeDataLoader {
                 outputTokens: 0, // Not tracking per-message output for session total
                 cacheCreationTokens: cacheCreation,
                 cacheReadTokens: cacheRead,
-                messageCount: messageCount
+                messageCount: messageCount,
+                isActive: sessionTokens > 0
             };
 
         } catch (error) {
@@ -357,7 +422,8 @@ class ClaudeDataLoader {
                 outputTokens: 0,
                 cacheCreationTokens: 0,
                 cacheReadTokens: 0,
-                messageCount: 0
+                messageCount: 0,
+                isActive: false
             };
         }
     }

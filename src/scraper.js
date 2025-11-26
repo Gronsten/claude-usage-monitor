@@ -363,18 +363,34 @@ class ClaudeUsageScraper {
      */
     processApiResponse(apiResponse) {
         try {
+            // 5-hour session limit
             const fiveHoursUsage = apiResponse.five_hour?.utilization || 0;
             const resetsAtFiveHour = apiResponse.five_hour?.resets_at;
 
-            // Use 7-day utilization as the weekly percentage
+            // 7-day overall limit (all models combined)
             const sevenDayUsage = apiResponse.seven_day?.utilization || 0;
             const resetsAt = apiResponse.seven_day?.resets_at;
+
+            // 7-day Sonnet-only limit (Nov 2025 addition)
+            // Use nullish coalescing (??) to preserve 0 values - only null/undefined become null
+            const sevenDaySonnetUsage = apiResponse.seven_day_sonnet?.utilization ?? null;
+            const resetsAtSonnet = apiResponse.seven_day_sonnet?.resets_at;
+
+            // 7-day Opus limit (may be null if removed/not applicable)
+            // Use nullish coalescing (??) to preserve 0 values - only null/undefined become null
+            const sevenDayOpusUsage = apiResponse.seven_day_opus?.utilization ?? null;
+            const resetsAtOpus = apiResponse.seven_day_opus?.resets_at;
 
             return {
                 usagePercent: fiveHoursUsage,
                 resetTime: this.calculateResetTime(resetsAtFiveHour),
                 usagePercentWeek: sevenDayUsage,
                 resetTimeWeek: this.calculateResetTime(resetsAt),
+                // New fields (Nov 2025)
+                usagePercentSonnet: sevenDaySonnetUsage,
+                resetTimeSonnet: this.calculateResetTime(resetsAtSonnet),
+                usagePercentOpus: sevenDayOpusUsage,
+                resetTimeOpus: this.calculateResetTime(resetsAtOpus),
                 timestamp: new Date(),
                 rawData: apiResponse // Keep raw data for future use
             };

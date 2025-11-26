@@ -1,0 +1,9 @@
+{
+  "project": {
+    "name": "claude-usage-monitor",
+    "description": "VS Code extension for monitoring Claude.ai usage limits and Claude Code token consumption"
+  },
+  "testing": {
+    "notes": "Use F5 to launch Extension Development Host for testing"
+  }
+}

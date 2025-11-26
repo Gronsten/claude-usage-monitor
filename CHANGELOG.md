@@ -2,6 +2,33 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.6.0] - 2025-11-26
+
+### Added
+- **November 2025 Claude.ai Subscription Changes Support**: Full support for new usage metrics
+  - Sonnet weekly usage tracking (7-day rolling)
+  - Opus weekly usage tracking (Max plans only)
+  - Proper handling of all new API fields from Claude.ai usage endpoint
+- **Configurable Status Bar Items**: Each status bar metric can now be shown/hidden independently
+  - `showSession`: 5-hour session usage (default: on)
+  - `showWeekly`: 7-day weekly usage (default: on)
+  - `showSonnet`: Sonnet weekly usage (default: off)
+  - `showOpus`: Opus weekly usage for Max plans (default: off)
+  - `showTokens`: Token usage (default: on)
+- **Configurable Thresholds**: Warning and error thresholds are now user-configurable
+  - `thresholds.warning`: Usage percentage for yellow warning indicator (default: 75%)
+  - `thresholds.error`: Usage percentage for red error indicator (default: 90%)
+- **Activity Status Descriptions**: Tree view now shows activity level with quirky descriptions
+  - Heavy usage: "Claude needs a coffee break soon"
+  - Moderate usage: "Pace yourself, human"
+  - Normal usage: "Plenty of Claude time remaining"
+
+### Changed
+- Status bar text format improved: "7d 24%" and "Tk 77%" (space instead of colon)
+
+### Fixed
+- 0% usage values now display correctly (was incorrectly treating 0 as null due to || vs ?? operator)
+
 ## [2.5.1] - 2025-11-25
 
 ### Added

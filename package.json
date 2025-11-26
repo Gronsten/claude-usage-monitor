@@ -2,7 +2,7 @@
   "name": "claude-session-usage",
   "displayName": "Claude Session Usage",
   "description": "Monitor Claude.ai web usage and Claude Code token consumption directly in VS Code with real-time tracking",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "publisher": "Gronsten",
   "author": {
     "name": "Mark Campbell",
@@ -96,6 +96,45 @@
           "minimum": 1,
           "maximum": 60,
           "description": "Auto-refresh interval in minutes for checking Claude.ai usage and session token data (1-60 minutes)"
+        },
+        "claudeUsage.statusBar.showSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show 5-hour session usage in status bar"
+        },
+        "claudeUsage.statusBar.showWeekly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show 7-day weekly usage in status bar"
+        },
+        "claudeUsage.statusBar.showSonnet": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show Sonnet weekly usage in status bar"
+        },
+        "claudeUsage.statusBar.showOpus": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show Opus weekly usage in status bar (Max plans only)"
+        },
+        "claudeUsage.statusBar.showTokens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show token usage in status bar"
+        },
+        "claudeUsage.thresholds.warning": {
+          "type": "number",
+          "default": 75,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Usage percentage to show warning (yellow) indicator"
+        },
+        "claudeUsage.thresholds.error": {
+          "type": "number",
+          "default": 90,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Usage percentage to show error (red) indicator"
         }
       }
     }

@@ -34,7 +34,7 @@ coverage/
 # Session tracking data
 session-data.json
 
-# Claude Code local settings
+# Claude Code local settings (keep commands, ignore local settings)
 .claude/settings.local.json
 
 # Test and development scripts

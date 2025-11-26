@@ -34,14 +34,13 @@ class ActivityMonitor {
         const maxPercent = Math.max(claudePercent, tokenPercent);
 
         // Determine activity level based on max usage
-        if (maxPercent >= 80) {
-            return 'heavy';      // 80-100% - Getting critical!
-        } else if (maxPercent >= 50) {
-            return 'moderate';   // 50-79% - Halfway there
-        } else if (maxPercent >= 25) {
-            return 'light';      // 25-49% - Quarter used
+        // Thresholds raised for Claude Code heavy usage patterns
+        if (maxPercent >= 90) {
+            return 'heavy';      // 90-100% - Critical, running out!
+        } else if (maxPercent >= 75) {
+            return 'moderate';   // 75-89% - Getting low
         } else {
-            return 'idle';       // 0-24% - Plenty left
+            return 'idle';       // 0-74% - Normal usage
         }
     }
 
@@ -76,17 +75,25 @@ class ActivityMonitor {
      * @param {string} level
      * @param {number} claudePercent
      * @param {number} tokenPercent
-     * @returns {string}
+     * @returns {object} { short, quirky }
      */
     getActivityDescription(level, claudePercent, tokenPercent) {
         const descriptions = {
-            'heavy': 'Running low!',
-            'moderate': 'Much work, many thought',
-            'light': 'Quarter+ used',
-            'idle': 'Plenty of Claude time!'
+            'heavy': {
+                short: 'Running low!',
+                quirky: 'Claude needs a coffee break soon ☕'
+            },
+            'moderate': {
+                short: 'Getting low',
+                quirky: 'Pace yourself, human 🐢'
+            },
+            'idle': {
+                short: 'Normal usage',
+                quirky: 'Plenty of Claude time remaining 🚀'
+            }
         };
 
-        return descriptions[level] || 'Unknown';
+        return descriptions[level] || { short: '', quirky: '' };
     }
 }
 
