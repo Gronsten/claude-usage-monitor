@@ -1,3 +1,12 @@
+## [2.6.5](https://github.com/hypersec-io/claude-usage-monitor/compare/v2.6.4...v2.6.5) (2025-11-26)
+
+
+### Bug Fixes
+
+* configure semantic-release for fork repository ([58b0178](https://github.com/hypersec-io/claude-usage-monitor/commit/58b017837c02ab9476daacfb945c6b91d0882c1b))
+* extend session activity window from 5 minutes to 1 hour ([3fec118](https://github.com/hypersec-io/claude-usage-monitor/commit/3fec11818950364ef6cdadd9d68f142276383ea6))
+* reduce status bar flickering and improve UX ([b55c073](https://github.com/hypersec-io/claude-usage-monitor/commit/b55c073e4e9d559125087ffcc36a37573a20aca0))
+
 # Change Log
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
