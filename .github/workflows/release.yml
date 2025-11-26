@@ -10,7 +10,7 @@ jobs:
   release:
     # IMPORTANT: Only runs in YOUR fork - will not run if merged to upstream
     if: github.repository == 'hypersec-io/claude-usage-monitor'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.GH_RUNNER_DEFAULT }}
 
     permissions:
       contents: write
@@ -18,11 +18,18 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -45,7 +52,7 @@ jobs:
             @semantic-release/changelog@6
             @semantic-release/git@10
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: Package VSIX
         if: steps.semantic.outputs.new_release_published == 'true'
@@ -58,4 +65,4 @@ jobs:
           tag_name: v${{ steps.semantic.outputs.new_release_version }}
           files: '*.vsix'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
