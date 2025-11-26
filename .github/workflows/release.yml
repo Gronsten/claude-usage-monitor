@@ -10,7 +10,7 @@ jobs:
   release:
     # IMPORTANT: Only runs in YOUR fork - will not run if merged to upstream
     if: github.repository == 'hypersec-io/claude-usage-monitor'
-    runs-on: ${{ vars.GH_RUNNER_DEFAULT }}
+    runs-on: ${{ vars.GH_RUNNER_DEFAULT || 'ubuntu-latest' }}
 
     permissions:
       contents: write
