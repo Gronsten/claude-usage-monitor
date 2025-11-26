@@ -295,7 +295,9 @@ class ClaudeDataLoader {
      */
     async getCurrentSessionUsage() {
         console.log('🔍 getCurrentSessionUsage() - extracting cache size from most recent message');
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        // Use 1 hour window - session stays "active" as long as file was touched recently
+        // This prevents the Tk display from flickering to "-" during pauses in conversation
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
 
         // Try project-specific directory first, fall back to global
         let dataDir = await this.getProjectDataDirectory();
@@ -328,7 +330,7 @@ class ClaudeDataLoader {
             for (const filePath of allJsonlFiles) {
                 try {
                     const stats = await fs.stat(filePath);
-                    if (stats.mtimeMs >= fiveMinutesAgo) {
+                    if (stats.mtimeMs >= oneHourAgo) {
                         recentFiles.push({
                             path: filePath,
                             modified: stats.mtimeMs
@@ -342,7 +344,7 @@ class ClaudeDataLoader {
             // Sort by modification time (most recent first)
             recentFiles.sort((a, b) => b.modified - a.modified);
 
-            console.log(`⏱️  Found ${recentFiles.length} file(s) modified in last 5 minutes`);
+            console.log(`⏱️  Found ${recentFiles.length} file(s) modified in last hour`);
 
             if (recentFiles.length === 0) {
                 console.log('⚠️  No recently modified files - conversation may be inactive');
