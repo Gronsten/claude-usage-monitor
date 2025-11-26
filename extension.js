@@ -346,6 +346,30 @@ async function activate(context) {
         })
     );
 
+    // Clear Session command - deletes stored browser session for fresh login
+    context.subscriptions.push(
+        vscode.commands.registerCommand('claude-usage.clearSession', async () => {
+            try {
+                if (dataProvider && dataProvider.scraper) {
+                    const confirm = await vscode.window.showWarningMessage(
+                        'This will delete your saved browser session. You will need to log in to Claude.ai again. Continue?',
+                        { modal: true },
+                        'Yes, Clear Session'
+                    );
+                    if (confirm === 'Yes, Clear Session') {
+                        const result = await dataProvider.scraper.clearSession();
+                        dataProvider.isFirstFetch = true;
+                        vscode.window.showInformationMessage(result.message);
+                    }
+                } else {
+                    vscode.window.showWarningMessage('Scraper not initialized');
+                }
+            } catch (error) {
+                vscode.window.showErrorMessage(`Clear session failed: ${error.message}`);
+            }
+        })
+    );
+
     // Get configuration
     const config = vscode.workspace.getConfiguration('claudeUsage');
 

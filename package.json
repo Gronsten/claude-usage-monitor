@@ -68,6 +68,11 @@
         "command": "claude-usage.resetConnection",
         "title": "Reset Browser Connection",
         "category": "Claude"
+      },
+      {
+        "command": "claude-usage.clearSession",
+        "title": "Clear Browser Session (Re-login)",
+        "category": "Claude"
       }
     ],
     "viewsContainers": {

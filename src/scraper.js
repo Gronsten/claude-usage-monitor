@@ -718,6 +718,47 @@ class ClaudeUsageScraper {
     }
 
     /**
+     * Clear session completely - delete stored browser session data
+     * Use this when login fails and you need to start fresh
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    async clearSession() {
+        const debug = isDebugEnabled();
+        if (debug) {
+            const debugOutput = getDebugChannel();
+            debugOutput.appendLine(`\n=== CLEAR SESSION (${new Date().toLocaleString()}) ===`);
+        }
+
+        // First reset the connection
+        await this.reset();
+
+        // Then delete the session directory
+        try {
+            if (fs.existsSync(this.sessionDir)) {
+                fs.rmSync(this.sessionDir, { recursive: true, force: true });
+                if (debug) {
+                    const debugOutput = getDebugChannel();
+                    debugOutput.appendLine(`Deleted session directory: ${this.sessionDir}`);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to delete session directory:', error);
+            if (debug) {
+                const debugOutput = getDebugChannel();
+                debugOutput.appendLine(`Failed to delete session directory: ${error.message}`);
+            }
+            return { success: false, message: `Failed to clear session: ${error.message}` };
+        }
+
+        if (debug) {
+            const debugOutput = getDebugChannel();
+            debugOutput.appendLine('Session cleared - next fetch will prompt for fresh login');
+        }
+
+        return { success: true, message: 'Session cleared successfully. Next fetch will prompt for login.' };
+    }
+
+    /**
      * Get diagnostic information about current state
      * @returns {object} Diagnostic info
      */
