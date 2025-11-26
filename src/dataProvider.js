@@ -123,7 +123,7 @@ class UsageDataProvider {
     items.push(
       new UsageTreeItem(
         "Session (5hr)",
-        `${this.usageData.usagePercent}% (resets ${resetClockTime})`,
+        `${this.usageData.usagePercent}% (resets at ${resetClockTime})`,
         vscode.TreeItemCollapsibleState.None,
         usageLevel
       )
@@ -159,7 +159,7 @@ class UsageDataProvider {
       items.push(
         new UsageTreeItem(
           "Weekly (all)",
-          `${this.usageData.usagePercentWeek}% (resets ${weekResetClock})`,
+          `${this.usageData.usagePercentWeek}% (resets at ${weekResetClock})`,
           vscode.TreeItemCollapsibleState.None,
           weeklyLevel
         )

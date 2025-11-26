@@ -32,6 +32,16 @@ let statusBarItems = {
     credits: null     // Monthly credits (extra usage)
 };
 
+// Cache last displayed values to avoid unnecessary updates
+let lastDisplayedValues = {
+    sessionText: null,
+    weeklyText: null,
+    sonnetText: null,
+    opusText: null,
+    tokensText: null,
+    creditsText: null
+};
+
 /**
  * Create and configure multiple status bar items
  * @param {vscode.ExtensionContext} context
@@ -148,19 +158,26 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     const warningThreshold = config.get('thresholds.warning', 75);
     const errorThreshold = config.get('thresholds.error', 90);
 
-    // Hide all items first
-    statusBarItems.session.hide();
-    statusBarItems.weekly.hide();
-    statusBarItems.sonnet.hide();
-    statusBarItems.opus.hide();
-    statusBarItems.tokens.hide();
-    statusBarItems.credits.hide();
+    // Track which items should be visible (updated in place to avoid flicker)
+    let sessionVisible = false;
+    let weeklyVisible = false;
+    let sonnetVisible = false;
+    let opusVisible = false;
+    let tokensVisible = false;
+    let creditsVisible = false;
 
-    // If no data at all, show default
+    // If no data at all, show default and hide all metric items
     if (!usageData && !sessionData) {
         statusBarItems.label.text = 'Claude  ';  // Space placeholder for spinner
         statusBarItems.label.tooltip = 'Click to fetch Claude usage data';
         statusBarItems.label.color = undefined;
+        // Hide all items at end
+        statusBarItems.session.hide();
+        statusBarItems.weekly.hide();
+        statusBarItems.sonnet.hide();
+        statusBarItems.opus.hide();
+        statusBarItems.tokens.hide();
+        statusBarItems.credits.hide();
         return;
     }
 
@@ -172,22 +189,26 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     const tooltipLines = [];
 
     // --- Session (5hr) usage ---
+    let newSessionText = null;
+    let newSessionColor = undefined;
     if (usageData) {
         const resetClockTime = calculateResetClockTime(usageData.resetTime);
         const { icon, color } = getIconAndColor(usageData.usagePercent, warningThreshold, errorThreshold);
 
         if (showSession) {
-            statusBarItems.session.text = `${icon ? icon + ' ' : ''}${usageData.usagePercent}%@${resetClockTime}`;
-            statusBarItems.session.color = color;
-            statusBarItems.session.show();
+            newSessionText = `${icon ? icon + ' ' : ''}${usageData.usagePercent}%@${resetClockTime}`;
+            newSessionColor = color;
+            sessionVisible = true;
         }
 
         // Tooltip (always show)
         tooltipLines.push('**Session**');
-        tooltipLines.push(`5hr limit: ${usageData.usagePercent}% (resets ${resetClockTime})`);
+        tooltipLines.push(`5hr limit: ${usageData.usagePercent}% (resets at ${resetClockTime})`);
     }
 
     // --- Token usage ---
+    let newTokensText = null;
+    let newTokensColor = undefined;
     if (showTokens) {
         if (sessionData && sessionData.tokenUsage) {
             const tokenPercent = Math.round(
@@ -195,9 +216,9 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
             );
             const { icon, color } = getIconAndColor(tokenPercent, warningThreshold, errorThreshold);
 
-            statusBarItems.tokens.text = `${icon ? icon + ' ' : ''}Tk ${tokenPercent}%`;
-            statusBarItems.tokens.color = color;
-            statusBarItems.tokens.show();
+            newTokensText = `${icon ? icon + ' ' : ''}Tk ${tokenPercent}%`;
+            newTokensColor = color;
+            tokensVisible = true;
 
             // Tooltip (always show)
             if (tooltipLines.length > 0 && !tooltipLines[tooltipLines.length - 1].startsWith('**Session')) {
@@ -206,37 +227,41 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
             tooltipLines.push(`Tokens: ${sessionData.tokenUsage.current.toLocaleString()} / ${sessionData.tokenUsage.limit.toLocaleString()} (${tokenPercent}%)`);
         } else {
             // Show placeholder when no token data
-            statusBarItems.tokens.text = 'Tk -';
-            statusBarItems.tokens.color = undefined;
-            statusBarItems.tokens.show();
+            newTokensText = 'Tk -';
+            newTokensColor = undefined;
+            tokensVisible = true;
         }
     }
 
     // --- Weekly (7d) usage ---
+    let newWeeklyText = null;
+    let newWeeklyColor = undefined;
     if (usageData && usageData.usagePercentWeek !== undefined) {
         const weekResetClock = calculateResetClockTime(usageData.resetTimeWeek);
         const { icon, color } = getIconAndColor(usageData.usagePercentWeek, warningThreshold, errorThreshold);
 
         if (showWeekly) {
-            statusBarItems.weekly.text = `${icon ? icon + ' ' : ''}7d ${usageData.usagePercentWeek}%`;
-            statusBarItems.weekly.color = color;
-            statusBarItems.weekly.show();
+            newWeeklyText = `${icon ? icon + ' ' : ''}7d ${usageData.usagePercentWeek}%`;
+            newWeeklyColor = color;
+            weeklyVisible = true;
         }
 
         // Tooltip (always show)
         tooltipLines.push('');
         tooltipLines.push('**Weekly**');
-        tooltipLines.push(`All models: ${usageData.usagePercentWeek}% (resets ${weekResetClock})`);
+        tooltipLines.push(`All models: ${usageData.usagePercentWeek}% (resets at ${weekResetClock})`);
     }
 
     // --- Sonnet weekly ---
+    let newSonnetText = null;
+    let newSonnetColor = undefined;
     if (usageData && usageData.usagePercentSonnet !== null && usageData.usagePercentSonnet !== undefined) {
         const { icon, color } = getIconAndColor(usageData.usagePercentSonnet, warningThreshold, errorThreshold);
 
         if (showSonnet) {
-            statusBarItems.sonnet.text = `${icon ? icon + ' ' : ''}${usageData.usagePercentSonnet}%S`;
-            statusBarItems.sonnet.color = color;
-            statusBarItems.sonnet.show();
+            newSonnetText = `${icon ? icon + ' ' : ''}${usageData.usagePercentSonnet}%S`;
+            newSonnetColor = color;
+            sonnetVisible = true;
         }
 
         // Tooltip (always show)
@@ -248,13 +273,15 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     }
 
     // --- Opus weekly ---
+    let newOpusText = null;
+    let newOpusColor = undefined;
     if (usageData && usageData.usagePercentOpus !== null && usageData.usagePercentOpus !== undefined) {
         const { icon, color } = getIconAndColor(usageData.usagePercentOpus, warningThreshold, errorThreshold);
 
         if (showOpus) {
-            statusBarItems.opus.text = `${icon ? icon + ' ' : ''}${usageData.usagePercentOpus}%O`;
-            statusBarItems.opus.color = color;
-            statusBarItems.opus.show();
+            newOpusText = `${icon ? icon + ' ' : ''}${usageData.usagePercentOpus}%O`;
+            newOpusColor = color;
+            opusVisible = true;
         }
 
         // Tooltip (always show)
@@ -266,6 +293,8 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     }
 
     // --- Monthly Credits (Extra Usage) ---
+    let newCreditsText = null;
+    let newCreditsColor = undefined;
     if (usageData && usageData.monthlyCredits) {
         const credits = usageData.monthlyCredits;
         const remaining = credits.limit - credits.used;
@@ -277,9 +306,9 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
             const usedDisplay = credits.used >= 1000
                 ? `${(credits.used / 1000).toFixed(1)}K`
                 : Math.round(credits.used);
-            statusBarItems.credits.text = `${icon ? icon + ' ' : ''}${currencySymbol}${usedDisplay}/${credits.percent}%`;
-            statusBarItems.credits.color = color;
-            statusBarItems.credits.show();
+            newCreditsText = `${icon ? icon + ' ' : ''}${currencySymbol}${usedDisplay}/${credits.percent}%`;
+            newCreditsColor = color;
+            creditsVisible = true;
         }
 
         // Tooltip (always show) - format with currency symbol
@@ -306,7 +335,7 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     }
     tooltipLines.push('Click to refresh');
 
-    // Apply tooltip to all visible items
+    // Apply tooltip to all items (tooltip changes don't cause flicker)
     const markdown = new vscode.MarkdownString(tooltipLines.join('  \n'));
     statusBarItems.label.tooltip = markdown;
     statusBarItems.session.tooltip = markdown;
@@ -315,6 +344,73 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     statusBarItems.opus.tooltip = markdown;
     statusBarItems.tokens.tooltip = markdown;
     statusBarItems.credits.tooltip = markdown;
+
+    // Only update status bar items if values actually changed (prevents flicker)
+    if (newSessionText !== lastDisplayedValues.sessionText) {
+        if (sessionVisible) {
+            statusBarItems.session.text = newSessionText;
+            statusBarItems.session.color = newSessionColor;
+            statusBarItems.session.show();
+        } else {
+            statusBarItems.session.hide();
+        }
+        lastDisplayedValues.sessionText = newSessionText;
+    }
+
+    if (newWeeklyText !== lastDisplayedValues.weeklyText) {
+        if (weeklyVisible) {
+            statusBarItems.weekly.text = newWeeklyText;
+            statusBarItems.weekly.color = newWeeklyColor;
+            statusBarItems.weekly.show();
+        } else {
+            statusBarItems.weekly.hide();
+        }
+        lastDisplayedValues.weeklyText = newWeeklyText;
+    }
+
+    if (newSonnetText !== lastDisplayedValues.sonnetText) {
+        if (sonnetVisible) {
+            statusBarItems.sonnet.text = newSonnetText;
+            statusBarItems.sonnet.color = newSonnetColor;
+            statusBarItems.sonnet.show();
+        } else {
+            statusBarItems.sonnet.hide();
+        }
+        lastDisplayedValues.sonnetText = newSonnetText;
+    }
+
+    if (newOpusText !== lastDisplayedValues.opusText) {
+        if (opusVisible) {
+            statusBarItems.opus.text = newOpusText;
+            statusBarItems.opus.color = newOpusColor;
+            statusBarItems.opus.show();
+        } else {
+            statusBarItems.opus.hide();
+        }
+        lastDisplayedValues.opusText = newOpusText;
+    }
+
+    if (newTokensText !== lastDisplayedValues.tokensText) {
+        if (tokensVisible) {
+            statusBarItems.tokens.text = newTokensText;
+            statusBarItems.tokens.color = newTokensColor;
+            statusBarItems.tokens.show();
+        } else {
+            statusBarItems.tokens.hide();
+        }
+        lastDisplayedValues.tokensText = newTokensText;
+    }
+
+    if (newCreditsText !== lastDisplayedValues.creditsText) {
+        if (creditsVisible) {
+            statusBarItems.credits.text = newCreditsText;
+            statusBarItems.credits.color = newCreditsColor;
+            statusBarItems.credits.show();
+        } else {
+            statusBarItems.credits.hide();
+        }
+        lastDisplayedValues.creditsText = newCreditsText;
+    }
 }
 
 /**

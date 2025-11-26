@@ -68,7 +68,7 @@ This guide will help you test the extension in the Extension Development Host.
 
 ### Command Palette Test
 
-- [ ] Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
+- [ ] Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)t
 - [ ] Type "Claude" - should see two commands:
   - "Claude: Fetch Claude Usage Now"
   - "Claude: Open Claude Settings Page"

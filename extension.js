@@ -119,17 +119,9 @@ async function setupTokenMonitoring(context) {
         debugLog('✅ File watcher active for JSONL changes');
     }
 
-    // Also poll every 30 seconds for safety (in case file watcher misses events)
-    const pollInterval = setInterval(async () => {
-        await updateTokensFromJsonl(true); // Silent mode
-    }, 30000);
-
-    context.subscriptions.push({
-        dispose: () => clearInterval(pollInterval)
-    });
-
+    // No polling needed - file watcher handles real-time updates
+    // and the main auto-refresh (default 5 min) handles periodic checks
     debugLog('✅ Token monitoring initialized');
-    debugLog(`   Polling interval: 30 seconds`);
     debugLog(`   Watching: ${watchDir}/${watchPattern}`);
 }
 
