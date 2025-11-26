@@ -150,6 +150,11 @@
           "minimum": 1,
           "maximum": 100,
           "description": "Usage percentage to show error (red) indicator"
+        },
+        "claudeUsage.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging to output channel (for troubleshooting)"
         }
       }
     }

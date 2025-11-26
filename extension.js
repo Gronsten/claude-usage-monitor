@@ -13,24 +13,58 @@ let sessionTracker;
 let claudeDataLoader;
 let jsonlWatcher;
 
+// Track if we're running in development mode
+let runningInDevMode = false;
+
+// Helper to check if debug mode is enabled (config setting OR dev mode)
+function isDebugMode(context) {
+    if (context?.extensionMode === vscode.ExtensionMode.Development) return true;
+    if (runningInDevMode) return true;
+    const config = vscode.workspace.getConfiguration('claudeUsage');
+    return config.get('debug', false);
+}
+
+// Lazy-created diagnostic channel for token monitoring
+let tokenDiagnosticChannel = null;
+function getTokenDiagnosticChannel() {
+    if (!tokenDiagnosticChannel) {
+        tokenDiagnosticChannel = vscode.window.createOutputChannel('Claude Usage - Token Monitor');
+    }
+    return tokenDiagnosticChannel;
+}
+
+/**
+ * Debug logger - only logs when debug mode is enabled
+ * @param {string} message - Message to log
+ */
+function debugLog(message) {
+    if (runningInDevMode || vscode.workspace.getConfiguration('claudeUsage').get('debug', false)) {
+        getTokenDiagnosticChannel().appendLine(message);
+    }
+}
+
 /**
  * Set up monitoring for Claude Code token usage via JSONL files
  * Monitors ~/.config/claude/projects/*.jsonl for usage data
  * @param {vscode.ExtensionContext} context
  */
 async function setupTokenMonitoring(context) {
-    console.log('📊 Setting up Claude Code JSONL token monitoring...');
-
-    // Create a diagnostic output channel for monitoring
-    const diagnosticChannel = vscode.window.createOutputChannel('Claude Usage - Token Monitor');
-    context.subscriptions.push(diagnosticChannel);
+    // Register diagnostic channel for disposal if it gets created
+    context.subscriptions.push({
+        dispose: () => {
+            if (tokenDiagnosticChannel) {
+                tokenDiagnosticChannel.dispose();
+                tokenDiagnosticChannel = null;
+            }
+        }
+    });
 
     // Get current workspace path for project-specific token tracking
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || null;
     if (workspacePath) {
-        diagnosticChannel.appendLine(`📂 Workspace path: ${workspacePath}`);
+        debugLog(`📂 Workspace path: ${workspacePath}`);
     } else {
-        diagnosticChannel.appendLine('⚠️ No workspace folder open - will use global token search');
+        debugLog('⚠️ No workspace folder open - will use global token search');
     }
 
     // Initialize the Claude data loader with workspace path
@@ -39,16 +73,14 @@ async function setupTokenMonitoring(context) {
     // Try to find Claude data directory
     const claudeDir = await claudeDataLoader.findClaudeDataDirectory();
     if (!claudeDir) {
-        diagnosticChannel.appendLine('⚠️ Claude data directory not found');
-        diagnosticChannel.appendLine('Checked locations:');
-        claudeDataLoader.claudeConfigPaths.forEach(p => {
-            diagnosticChannel.appendLine(`  - ${p}`);
-        });
-        diagnosticChannel.appendLine('Token monitoring will not be available.');
+        debugLog('⚠️ Claude data directory not found');
+        debugLog('Checked locations:');
+        claudeDataLoader.claudeConfigPaths.forEach(p => debugLog(`  - ${p}`));
+        debugLog('Token monitoring will not be available.');
         return;
     }
 
-    diagnosticChannel.appendLine(`✅ Found Claude data directory: ${claudeDir}`);
+    debugLog(`✅ Found Claude data directory: ${claudeDir}`);
 
     // Determine which directory to watch (project-specific or global)
     const projectDir = await claudeDataLoader.getProjectDataDirectory();
@@ -56,13 +88,13 @@ async function setupTokenMonitoring(context) {
     const watchPattern = projectDir ? '*.jsonl' : '**/*.jsonl';
 
     if (projectDir) {
-        diagnosticChannel.appendLine(`📂 Watching project-specific directory: ${projectDir}`);
+        debugLog(`📂 Watching project-specific directory: ${projectDir}`);
     } else {
-        diagnosticChannel.appendLine(`📂 Watching global directory: ${claudeDir}`);
+        debugLog(`📂 Watching global directory: ${claudeDir}`);
     }
 
     // Initial load of usage data
-    await updateTokensFromJsonl(diagnosticChannel);
+    await updateTokensFromJsonl(false);
 
     // Set up file watcher for JSONL directory
     const fs = require('fs');
@@ -73,50 +105,49 @@ async function setupTokenMonitoring(context) {
 
         // Watch for file changes
         jsonlWatcher.onDidChange(async () => {
-            diagnosticChannel.appendLine('📝 JSONL file changed, updating tokens...');
-            await updateTokensFromJsonl(diagnosticChannel);
+            debugLog('📝 JSONL file changed, updating tokens...');
+            await updateTokensFromJsonl(false);
         });
 
         // Watch for new files
         jsonlWatcher.onDidCreate(async () => {
-            diagnosticChannel.appendLine('📝 New JSONL file created, updating tokens...');
-            await updateTokensFromJsonl(diagnosticChannel);
+            debugLog('📝 New JSONL file created, updating tokens...');
+            await updateTokensFromJsonl(false);
         });
 
         context.subscriptions.push(jsonlWatcher);
-        diagnosticChannel.appendLine('✅ File watcher active for JSONL changes');
+        debugLog('✅ File watcher active for JSONL changes');
     }
 
     // Also poll every 30 seconds for safety (in case file watcher misses events)
     const pollInterval = setInterval(async () => {
-        await updateTokensFromJsonl(diagnosticChannel, true); // Silent mode
+        await updateTokensFromJsonl(true); // Silent mode
     }, 30000);
 
     context.subscriptions.push({
         dispose: () => clearInterval(pollInterval)
     });
 
-    diagnosticChannel.appendLine('✅ Token monitoring initialized');
-    diagnosticChannel.appendLine(`   Polling interval: 30 seconds`);
-    diagnosticChannel.appendLine(`   Watching: ${watchDir}/${watchPattern}`);
+    debugLog('✅ Token monitoring initialized');
+    debugLog(`   Polling interval: 30 seconds`);
+    debugLog(`   Watching: ${watchDir}/${watchPattern}`);
 }
 
 /**
  * Update token usage from JSONL data
- * @param {vscode.OutputChannel} diagnosticChannel
- * @param {boolean} silent - If true, don't log every update
+ * @param {boolean} silent - If true, don't log updates (used for polling)
  */
-async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
+async function updateTokensFromJsonl(silent = false) {
     try {
         // Get current session usage (from project-specific or global directory)
         const usage = await claudeDataLoader.getCurrentSessionUsage();
 
         if (!silent) {
             if (usage.isActive) {
-                diagnosticChannel.appendLine(`📊 Active session: ${usage.totalTokens.toLocaleString()} tokens (${usage.messageCount} messages)`);
-                diagnosticChannel.appendLine(`   Cache read: ${usage.cacheReadTokens.toLocaleString()}, Cache creation: ${usage.cacheCreationTokens.toLocaleString()}`);
+                debugLog(`📊 Active session: ${usage.totalTokens.toLocaleString()} tokens (${usage.messageCount} messages)`);
+                debugLog(`   Cache read: ${usage.cacheReadTokens.toLocaleString()}, Cache creation: ${usage.cacheCreationTokens.toLocaleString()}`);
             } else {
-                diagnosticChannel.appendLine(`⏸️  No active session detected (no recent JSONL activity)`);
+                debugLog(`⏸️  No active session detected (no recent JSONL activity)`);
             }
         }
 
@@ -128,9 +159,7 @@ async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
                     let currentSession = await sessionTracker.getCurrentSession();
                     if (!currentSession) {
                         currentSession = await sessionTracker.startSession('Claude Code session (auto-created)');
-                        if (!silent) {
-                            diagnosticChannel.appendLine(`✨ Created new session: ${currentSession.sessionId}`);
-                        }
+                        debugLog(`✨ Created new session: ${currentSession.sessionId}`);
                     }
                     await sessionTracker.updateTokens(usage.totalTokens, 200000);
                 }
@@ -153,7 +182,7 @@ async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
             }
         }
     } catch (error) {
-        diagnosticChannel.appendLine(`❌ Error updating tokens: ${error.message}`);
+        debugLog(`❌ Error updating tokens: ${error.message}`);
     }
 }
 
@@ -161,7 +190,12 @@ async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
  * @param {vscode.ExtensionContext} context
  */
 async function activate(context) {
-    console.log('Claude Usage Monitor is now active!');
+    // Enable debug mode if running in Extension Development Host (F5)
+    const { setDevMode } = require('./src/scraper');
+    if (context.extensionMode === vscode.ExtensionMode.Development) {
+        runningInDevMode = true;
+        setDevMode(true);
+    }
 
     // Create status bar item
     statusBarItem = createStatusBarItem(context);

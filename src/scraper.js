@@ -12,7 +12,7 @@ const {
     getSchemaInfo,
 } = require('./apiSchema');
 
-// Debug output channel for API responses
+// Debug output channel for API responses (lazy creation)
 let debugChannel = null;
 
 function getDebugChannel() {
@@ -20,6 +20,29 @@ function getDebugChannel() {
         debugChannel = vscode.window.createOutputChannel('Claude Usage - API Debug');
     }
     return debugChannel;
+}
+
+// Track if we're running in development mode (set during activation)
+let runningInDevMode = false;
+
+/**
+ * Set whether running in development mode
+ * @param {boolean} isDev
+ */
+function setDevMode(isDev) {
+    runningInDevMode = isDev;
+}
+
+/**
+ * Check if debug mode is enabled via settings OR running in development mode
+ * @returns {boolean}
+ */
+function isDebugEnabled() {
+    // Check user setting
+    const config = vscode.workspace.getConfiguration('claudeUsage');
+    const userEnabled = config.get('debug', false);
+
+    return userEnabled || runningInDevMode;
 }
 
 class ClaudeUsageScraper {
@@ -319,10 +342,12 @@ class ClaudeUsageScraper {
             this.page.on('request', (request) => {
                 const url = request.url();
 
-                // Log ALL API calls to debug channel for discovery
+                // Log ALL API calls to debug channel for discovery (only if debug enabled)
                 if (url.includes('/api/')) {
-                    const debugOutput = getDebugChannel();
-                    debugOutput.appendLine(`[REQUEST] ${request.method()} ${url}`);
+                    if (isDebugEnabled()) {
+                        const debugOutput = getDebugChannel();
+                        debugOutput.appendLine(`[REQUEST] ${request.method()} ${url}`);
+                    }
                     this.capturedEndpoints.push({ method: request.method(), url });
                 }
 
@@ -350,12 +375,12 @@ class ClaudeUsageScraper {
                 request.continue();
             });
 
-            // Also listen for responses to capture response data
+            // Also listen for responses to capture response data (only log if debug enabled)
             this.page.on('response', async (response) => {
                 const url = response.url();
 
-                // Log API responses with their data
-                if (url.includes('/api/') && response.status() === 200) {
+                // Log API responses with their data (only if debug enabled)
+                if (isDebugEnabled() && url.includes('/api/') && response.status() === 200) {
                     try {
                         const contentType = response.headers()['content-type'] || '';
                         if (contentType.includes('application/json')) {
@@ -372,8 +397,6 @@ class ClaudeUsageScraper {
                             if (url.includes('/overage_spend_limit')) {
                                 debugOutput.appendLine('*** OVERAGE SPEND LIMIT DATA ABOVE ***');
                             }
-
-                            // Debug data logged - use "Show Debug Output" command to view
                         }
                     } catch (e) {
                         // Ignore parse errors
@@ -490,18 +513,20 @@ class ClaudeUsageScraper {
             await this.sleep(2000);
 
             // If we captured the API endpoint, use it directly for faster, more reliable data
-            const debugOutput = getDebugChannel();
-            // Debug channel is not shown by default - use "Show Debug Output" command to view
-            debugOutput.appendLine(`\n=== FETCH ATTEMPT (${new Date().toLocaleString()}) ===`);
-            debugOutput.appendLine(`API endpoint captured: ${this.apiEndpoint ? 'YES' : 'NO'}`);
-            debugOutput.appendLine(`API headers captured: ${this.apiHeaders ? 'YES' : 'NO'}`);
-            debugOutput.appendLine(`Credits endpoint captured: ${this.creditsEndpoint ? 'YES' : 'NO'}`);
-            debugOutput.appendLine(`Overage endpoint captured: ${this.overageEndpoint ? 'YES' : 'NO'}`);
+            const debug = isDebugEnabled();
+            if (debug) {
+                const debugOutput = getDebugChannel();
+                debugOutput.appendLine(`\n=== FETCH ATTEMPT (${new Date().toLocaleString()}) ===`);
+                debugOutput.appendLine(`API endpoint captured: ${this.apiEndpoint ? 'YES' : 'NO'}`);
+                debugOutput.appendLine(`API headers captured: ${this.apiHeaders ? 'YES' : 'NO'}`);
+                debugOutput.appendLine(`Credits endpoint captured: ${this.creditsEndpoint ? 'YES' : 'NO'}`);
+                debugOutput.appendLine(`Overage endpoint captured: ${this.overageEndpoint ? 'YES' : 'NO'}`);
+            }
 
             if (this.apiEndpoint && this.apiHeaders) {
                 try {
                     console.log('Using captured API endpoint for direct access');
-                    debugOutput.appendLine('Attempting direct API fetch...');
+                    if (debug) getDebugChannel().appendLine('Attempting direct API fetch...');
 
                     // Get cookies from the page context
                     const cookies = await this.page.cookies();
@@ -524,11 +549,14 @@ class ClaudeUsageScraper {
                         return await response.json();
                     }, this.apiEndpoint, this.apiHeaders, cookieString);
 
-                    // Log raw API response for debugging
-                    debugOutput.appendLine('Direct API fetch SUCCESS!');
-                    debugOutput.appendLine(`=== RAW USAGE API RESPONSE ===`);
-                    debugOutput.appendLine(JSON.stringify(response, null, 2));
-                    debugOutput.appendLine('=== END RAW USAGE API RESPONSE ===');
+                    // Log raw API response for debugging (only if debug enabled)
+                    if (debug) {
+                        const debugOutput = getDebugChannel();
+                        debugOutput.appendLine('Direct API fetch SUCCESS!');
+                        debugOutput.appendLine(`=== RAW USAGE API RESPONSE ===`);
+                        debugOutput.appendLine(JSON.stringify(response, null, 2));
+                        debugOutput.appendLine('=== END RAW USAGE API RESPONSE ===');
+                    }
 
                     // Also fetch prepaid credits if endpoint is available
                     let creditsData = null;
@@ -545,13 +573,14 @@ class ClaudeUsageScraper {
                                 return null;
                             }, this.creditsEndpoint, this.apiHeaders, cookieString);
 
-                            if (creditsData) {
+                            if (creditsData && debug) {
+                                const debugOutput = getDebugChannel();
                                 debugOutput.appendLine('=== PREPAID CREDITS RESPONSE ===');
                                 debugOutput.appendLine(JSON.stringify(creditsData, null, 2));
                                 debugOutput.appendLine('=== END PREPAID CREDITS RESPONSE ===');
                             }
                         } catch (creditsError) {
-                            debugOutput.appendLine(`Credits fetch error: ${creditsError.message}`);
+                            if (debug) getDebugChannel().appendLine(`Credits fetch error: ${creditsError.message}`);
                         }
                     }
 
@@ -570,18 +599,18 @@ class ClaudeUsageScraper {
                                 return null;
                             }, this.overageEndpoint, this.apiHeaders, cookieString);
 
-                            if (overageData) {
+                            if (overageData && debug) {
+                                const debugOutput = getDebugChannel();
                                 debugOutput.appendLine('=== OVERAGE SPEND LIMIT RESPONSE ===');
                                 debugOutput.appendLine(JSON.stringify(overageData, null, 2));
                                 debugOutput.appendLine('=== END OVERAGE SPEND LIMIT RESPONSE ===');
                             }
                         } catch (overageError) {
-                            debugOutput.appendLine(`Overage fetch error: ${overageError.message}`);
+                            if (debug) getDebugChannel().appendLine(`Overage fetch error: ${overageError.message}`);
                         }
                     }
 
-                    debugOutput.appendLine('');
-                    // Debug data logged - use "Show Debug Output" command to view
+                    if (debug) getDebugChannel().appendLine('');
 
                     // Process API response and return
                     console.log('Successfully fetched data via API');
@@ -589,16 +618,16 @@ class ClaudeUsageScraper {
 
                 } catch (apiError) {
                     console.log('API call failed, falling back to HTML scraping:', apiError.message);
-                    debugOutput.appendLine(`Direct API fetch FAILED: ${apiError.message}`);
+                    if (debug) getDebugChannel().appendLine(`Direct API fetch FAILED: ${apiError.message}`);
                     // Fall through to HTML scraping fallback
                 }
             } else {
-                debugOutput.appendLine('Skipping direct API - endpoint or headers not captured yet');
+                if (debug) getDebugChannel().appendLine('Skipping direct API - endpoint or headers not captured yet');
             }
 
             // Fallback: Extract text content and parse usage data from HTML
             console.log('Using HTML scraping method');
-            debugOutput.appendLine('Falling back to HTML scraping method...');
+            if (debug) getDebugChannel().appendLine('Falling back to HTML scraping method...');
             const data = await this.page.evaluate(() => {
                 const bodyText = document.body.innerText;
 
@@ -662,8 +691,11 @@ class ClaudeUsageScraper {
      * Useful for debugging or recovering from a bad state
      */
     async reset() {
-        const debugOutput = getDebugChannel();
-        debugOutput.appendLine(`\n=== RESET CONNECTION (${new Date().toLocaleString()}) ===`);
+        const debug = isDebugEnabled();
+        if (debug) {
+            const debugOutput = getDebugChannel();
+            debugOutput.appendLine(`\n=== RESET CONNECTION (${new Date().toLocaleString()}) ===`);
+        }
 
         // Close existing connection
         await this.close();
@@ -675,10 +707,12 @@ class ClaudeUsageScraper {
         this.overageEndpoint = null;
         this.capturedEndpoints = [];
 
-        debugOutput.appendLine('Browser connection closed');
-        debugOutput.appendLine('All captured API endpoints cleared');
-        debugOutput.appendLine('Ready for fresh connection on next fetch');
-        // Debug data logged - use "Show Debug Output" command to view
+        if (debug) {
+            const debugOutput = getDebugChannel();
+            debugOutput.appendLine('Browser connection closed');
+            debugOutput.appendLine('All captured API endpoints cleared');
+            debugOutput.appendLine('Ready for fresh connection on next fetch');
+        }
 
         return { success: true, message: 'Connection reset successfully' };
     }
@@ -709,4 +743,4 @@ class ClaudeUsageScraper {
     }
 }
 
-module.exports = { ClaudeUsageScraper, getDebugChannel };
+module.exports = { ClaudeUsageScraper, getDebugChannel, setDevMode };

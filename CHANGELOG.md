@@ -4,6 +4,13 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
 
 ## [2.6.3] - 2025-11-26
 
+### Added
+
+- **`claudeUsage.debug` setting**: Explicit debug mode control
+  - Debug logging now only occurs when `claudeUsage.debug: true` OR running in F5 development mode
+  - No resources wasted on debug output generation when not in debug mode
+  - Lazy output channel creation - channels only created when debug mode is active
+
 ### Security
 
 - **Fixed js-yaml prototype pollution vulnerability** (CVE) - Updated transitive dependency js-yaml 4.1.0 → 4.1.1
