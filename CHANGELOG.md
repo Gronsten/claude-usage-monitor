@@ -2,6 +2,15 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.6.2] - 2025-11-26
+
+### Fixed
+
+- **Debug Output No Longer Auto-Shows**: Removed automatic display of debug output channel
+  - Debug logs are still captured but no longer pop up automatically on every fetch
+  - Use "Claude: Show Debug Output" command to view debug information when needed
+  - Provides cleaner experience for normal usage
+
 ## [2.6.1] - 2025-11-26
 
 ### Fixed

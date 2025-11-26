@@ -373,7 +373,7 @@ class ClaudeUsageScraper {
                                 debugOutput.appendLine('*** OVERAGE SPEND LIMIT DATA ABOVE ***');
                             }
 
-                            debugOutput.show(true); // Keep channel visible
+                            // Debug data logged - use "Show Debug Output" command to view
                         }
                     } catch (e) {
                         // Ignore parse errors
@@ -491,7 +491,7 @@ class ClaudeUsageScraper {
 
             // If we captured the API endpoint, use it directly for faster, more reliable data
             const debugOutput = getDebugChannel();
-            debugOutput.show(true); // Show debug channel (don't steal focus)
+            // Debug channel is not shown by default - use "Show Debug Output" command to view
             debugOutput.appendLine(`\n=== FETCH ATTEMPT (${new Date().toLocaleString()}) ===`);
             debugOutput.appendLine(`API endpoint captured: ${this.apiEndpoint ? 'YES' : 'NO'}`);
             debugOutput.appendLine(`API headers captured: ${this.apiHeaders ? 'YES' : 'NO'}`);
@@ -581,7 +581,7 @@ class ClaudeUsageScraper {
                     }
 
                     debugOutput.appendLine('');
-                    debugOutput.show(true); // Show channel but don't steal focus
+                    // Debug data logged - use "Show Debug Output" command to view
 
                     // Process API response and return
                     console.log('Successfully fetched data via API');
@@ -678,7 +678,7 @@ class ClaudeUsageScraper {
         debugOutput.appendLine('Browser connection closed');
         debugOutput.appendLine('All captured API endpoints cleared');
         debugOutput.appendLine('Ready for fresh connection on next fetch');
-        debugOutput.show(true);
+        // Debug data logged - use "Show Debug Output" command to view
 
         return { success: true, message: 'Connection reset successfully' };
     }
