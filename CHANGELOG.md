@@ -2,6 +2,14 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.6.1] - 2025-11-26
+
+### Fixed
+
+- **Status Bar Item Grouping**: Increased status bar priority to prevent other extensions from inserting items between Claude usage metrics
+  - All Claude status bar items now stay grouped together (Claude label, session, weekly, sonnet, opus, credits, tokens)
+  - Uses high base priority (1000) with consecutive decrements to maintain visual cohesion
+
 ## [2.6.0] - 2025-11-26
 
 ### Added
@@ -9,12 +17,17 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
   - Sonnet weekly usage tracking (7-day rolling)
   - Opus weekly usage tracking (Max plans only)
   - Proper handling of all new API fields from Claude.ai usage endpoint
+- **Monthly Credits / Extra Usage Tracking**: Displays overage spend limit data
+  - Shows used vs limit in tree view (e.g., "6,313 / 10,000 AUD (63%)")
+  - Tooltip shows remaining credits
+  - Optional status bar display with `$63%` format (off by default)
 - **Configurable Status Bar Items**: Each status bar metric can now be shown/hidden independently
   - `showSession`: 5-hour session usage (default: on)
   - `showWeekly`: 7-day weekly usage (default: on)
   - `showSonnet`: Sonnet weekly usage (default: off)
   - `showOpus`: Opus weekly usage for Max plans (default: off)
   - `showTokens`: Token usage (default: on)
+  - `showCredits`: Monthly credits/overage usage (default: off)
 - **Configurable Thresholds**: Warning and error thresholds are now user-configurable
   - `thresholds.warning`: Usage percentage for yellow warning indicator (default: 75%)
   - `thresholds.error`: Usage percentage for red error indicator (default: 90%)
@@ -22,11 +35,22 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
   - Heavy usage: "Claude needs a coffee break soon"
   - Moderate usage: "Pace yourself, human"
   - Normal usage: "Plenty of Claude time remaining"
+- **Braille Spinner Animation**: Status bar shows smooth braille animation during fetch
+- **Graduated Error States**:
+  - Yellow warning (⚠) when web scrape fails but tokens work
+  - Red error (✗) when both web scrape and tokens fail
+  - Detailed debug info in tooltip on failure
 
 ### Changed
 - Status bar text format improved: "7d 24%" and "Tk 77%" (space instead of colon)
+- Removed intrusive popup notifications during fetch operations
+- Status bar label now shows clean "Claude" text when idle (no placeholder character)
 
 ### Fixed
+- **Project-Specific Token Tracking**: Token usage now correctly tracks per-project instead of showing global totals across all Claude Code projects
+  - Automatically detects current VS Code workspace and matches to corresponding `~/.claude/projects/<project-hash>/` directory
+  - Falls back to global tracking only when no workspace is open
+  - File watcher now monitors the correct project-specific directory
 - 0% usage values now display correctly (was incorrectly treating 0 as null due to || vs ?? operator)
 
 ## [2.5.1] - 2025-11-25

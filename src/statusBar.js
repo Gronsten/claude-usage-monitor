@@ -1,6 +1,26 @@
 const vscode = require('vscode');
 const { calculateResetClockTime } = require('./utils');
 
+/**
+ * Get currency symbol for a currency code
+ * @param {string} currency - ISO 4217 currency code
+ * @returns {string} Currency symbol
+ */
+function getCurrencySymbol(currency) {
+    const symbols = {
+        USD: '$', AUD: '$', CAD: '$', EUR: '€', GBP: '£',
+        JPY: '¥', CNY: '¥', KRW: '₩', INR: '₹', BRL: 'R$',
+        MXN: '$', CHF: 'CHF ', SEK: 'kr', NOK: 'kr', DKK: 'kr',
+        NZD: '$', SGD: '$', HKD: '$',
+    };
+    return symbols[currency] || '';
+}
+
+// Braille spinner frames
+const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+let spinnerIndex = 0;
+let spinnerInterval = null;
+
 // Store references to all status bar items
 let statusBarItems = {
     label: null,      // "Claude" label
@@ -8,7 +28,8 @@ let statusBarItems = {
     weekly: null,     // 7d weekly usage
     sonnet: null,     // Sonnet weekly (optional)
     opus: null,       // Opus weekly (optional, Max plans only)
-    tokens: null      // Token usage
+    tokens: null,     // Token usage
+    credits: null     // Monthly credits (extra usage)
 };
 
 /**
@@ -18,24 +39,26 @@ let statusBarItems = {
  */
 function createStatusBarItem(context) {
     // Priority determines order (higher priority = further RIGHT for Right-aligned items)
-    // We want left-to-right reading order: Claude | session | weekly | sonnet | opus | tokens
-    // So leftmost items need HIGHEST priority, rightmost need LOWEST
-    const basePriority = 100;
+    // Left-to-right order: Claude | 20%@13:03 (session) | 7d | S% | O% | $X/Y% | Tk
+    // Session (5hr) ALWAYS first after Claude, Tokens ALWAYS last
+    // Using high base priority (1000) with small decrements to keep items together
+    // and avoid other extensions inserting between our items
+    const basePriority = 1000;
 
     // Label item (leftmost = highest priority)
     statusBarItems.label = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
-        basePriority + 5
+        basePriority
     );
     statusBarItems.label.command = 'claude-usage.fetchNow';
-    statusBarItems.label.text = 'Claude';
+    statusBarItems.label.text = 'Claude  ';  // Space placeholder for spinner
     statusBarItems.label.show();
     context.subscriptions.push(statusBarItems.label);
 
     // Session (5hr) usage
     statusBarItems.session = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
-        basePriority + 4
+        basePriority - 1
     );
     statusBarItems.session.command = 'claude-usage.fetchNow';
     context.subscriptions.push(statusBarItems.session);
@@ -43,7 +66,7 @@ function createStatusBarItem(context) {
     // Weekly (7d) usage
     statusBarItems.weekly = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
-        basePriority + 3
+        basePriority - 2
     );
     statusBarItems.weekly.command = 'claude-usage.fetchNow';
     context.subscriptions.push(statusBarItems.weekly);
@@ -51,7 +74,7 @@ function createStatusBarItem(context) {
     // Sonnet weekly usage (optional)
     statusBarItems.sonnet = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
-        basePriority + 2
+        basePriority - 3
     );
     statusBarItems.sonnet.command = 'claude-usage.fetchNow';
     context.subscriptions.push(statusBarItems.sonnet);
@@ -59,15 +82,23 @@ function createStatusBarItem(context) {
     // Opus weekly usage (optional, Max plans only)
     statusBarItems.opus = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
-        basePriority + 1
+        basePriority - 4
     );
     statusBarItems.opus.command = 'claude-usage.fetchNow';
     context.subscriptions.push(statusBarItems.opus);
 
-    // Token usage (rightmost = lowest priority)
+    // Extra usage / credits
+    statusBarItems.credits = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Right,
+        basePriority - 5
+    );
+    statusBarItems.credits.command = 'claude-usage.fetchNow';
+    context.subscriptions.push(statusBarItems.credits);
+
+    // Token usage (rightmost = lowest priority, always at end)
     statusBarItems.tokens = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
-        basePriority
+        basePriority - 6
     );
     statusBarItems.tokens.command = 'claude-usage.fetchNow';
     context.subscriptions.push(statusBarItems.tokens);
@@ -113,6 +144,7 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     const showSonnet = config.get('statusBar.showSonnet', false);
     const showOpus = config.get('statusBar.showOpus', false);
     const showTokens = config.get('statusBar.showTokens', true);
+    const showCredits = config.get('statusBar.showCredits', false);
     const warningThreshold = config.get('thresholds.warning', 75);
     const errorThreshold = config.get('thresholds.error', 90);
 
@@ -122,17 +154,18 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     statusBarItems.sonnet.hide();
     statusBarItems.opus.hide();
     statusBarItems.tokens.hide();
+    statusBarItems.credits.hide();
 
     // If no data at all, show default
     if (!usageData && !sessionData) {
-        statusBarItems.label.text = 'Claude --';
+        statusBarItems.label.text = 'Claude  ';  // Space placeholder for spinner
         statusBarItems.label.tooltip = 'Click to fetch Claude usage data';
         statusBarItems.label.color = undefined;
         return;
     }
 
     // Reset label
-    statusBarItems.label.text = 'Claude';
+    statusBarItems.label.text = 'Claude  ';  // Space placeholder for spinner
     statusBarItems.label.color = undefined;
 
     // Build shared tooltip
@@ -227,6 +260,34 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
         tooltipLines.push(`Opus: ${usageData.usagePercentOpus}%`);
     }
 
+    // --- Monthly Credits (Extra Usage) ---
+    if (usageData && usageData.monthlyCredits) {
+        const credits = usageData.monthlyCredits;
+        const remaining = credits.limit - credits.used;
+        const { icon, color } = getIconAndColor(credits.percent, warningThreshold, errorThreshold);
+        const currencySymbol = getCurrencySymbol(credits.currency);
+
+        if (showCredits) {
+            // Show dollar amount and percentage (e.g., "$63/63%")
+            const usedDisplay = credits.used >= 1000
+                ? `${(credits.used / 1000).toFixed(1)}K`
+                : Math.round(credits.used);
+            statusBarItems.credits.text = `${icon ? icon + ' ' : ''}${currencySymbol}${usedDisplay}/${credits.percent}%`;
+            statusBarItems.credits.color = color;
+            statusBarItems.credits.show();
+        }
+
+        // Tooltip (always show) - format with currency symbol
+        const usedFormatted = `${currencySymbol}${credits.used.toLocaleString()}`;
+        const limitFormatted = `${currencySymbol}${credits.limit.toLocaleString()}`;
+        const remainingFormatted = `${currencySymbol}${remaining.toLocaleString()}`;
+
+        tooltipLines.push('');
+        tooltipLines.push('**Extra Usage**');
+        tooltipLines.push(`Used: ${usedFormatted} / ${limitFormatted} ${credits.currency} (${credits.percent}%)`);
+        tooltipLines.push(`Remaining: ${remainingFormatted} ${credits.currency}`);
+    }
+
     // --- Activity Status (quirky description) ---
     if (activityStats && activityStats.description) {
         tooltipLines.push('');
@@ -248,9 +309,89 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     statusBarItems.sonnet.tooltip = markdown;
     statusBarItems.opus.tooltip = markdown;
     statusBarItems.tokens.tooltip = markdown;
+    statusBarItems.credits.tooltip = markdown;
+}
+
+/**
+ * Start the loading spinner animation on the Claude label
+ */
+function startSpinner() {
+    if (spinnerInterval) return; // Already running
+
+    spinnerIndex = 0;
+    spinnerInterval = setInterval(() => {
+        if (statusBarItems.label) {
+            statusBarItems.label.text = `Claude ${spinnerFrames[spinnerIndex]}`;
+        }
+        spinnerIndex = (spinnerIndex + 1) % spinnerFrames.length;
+    }, 80); // Fast smooth animation
+}
+
+/**
+ * Stop the loading spinner and restore the Claude label
+ * Shows warning symbol (⚠) in yellow if web scrape failed but tokens work
+ * Shows error symbol (✗) in red if both web scrape AND tokens failed
+ * @param {Error} [webError] - Optional web scrape error
+ * @param {Error} [tokenError] - Optional token fetch error
+ */
+function stopSpinner(webError = null, tokenError = null) {
+    if (spinnerInterval) {
+        clearInterval(spinnerInterval);
+        spinnerInterval = null;
+    }
+    if (statusBarItems.label) {
+        if (webError && tokenError) {
+            // Complete failure - both web scrape and tokens failed (RED)
+            statusBarItems.label.text = 'Claude ✗';
+            statusBarItems.label.color = new vscode.ThemeColor('errorForeground');
+
+            const errorLines = [
+                '**Complete Fetch Failed**',
+                '',
+                `Web: ${webError.message}`,
+                `Tokens: ${tokenError.message}`,
+                '',
+                '**Debug Info**',
+                `Time: ${new Date().toLocaleString()}`,
+                '',
+                '**Actions**',
+                '• Click to retry',
+                '• Run "Claude: Show Debug Output" for details',
+                '• Run "Claude: Reset Browser Connection" to reconnect'
+            ];
+            statusBarItems.label.tooltip = new vscode.MarkdownString(errorLines.join('  \n'));
+        } else if (webError) {
+            // Partial failure - web scrape failed but tokens may work (YELLOW)
+            statusBarItems.label.text = 'Claude ⚠';
+            statusBarItems.label.color = new vscode.ThemeColor('editorWarning.foreground');
+
+            const errorLines = [
+                '**Web Fetch Failed**',
+                '',
+                `Error: ${webError.message}`,
+                '',
+                '**Debug Info**',
+                `Time: ${new Date().toLocaleString()}`,
+                '',
+                'Token data may still be available',
+                '',
+                '**Actions**',
+                '• Click to retry',
+                '• Run "Claude: Show Debug Output" for details',
+                '• Run "Claude: Reset Browser Connection" to reconnect'
+            ];
+            statusBarItems.label.tooltip = new vscode.MarkdownString(errorLines.join('  \n'));
+        } else {
+            // Normal state - space placeholder keeps width consistent with spinner
+            statusBarItems.label.text = 'Claude  ';
+            statusBarItems.label.color = undefined;
+        }
+    }
 }
 
 module.exports = {
     createStatusBarItem,
-    updateStatusBar
+    updateStatusBar,
+    startSpinner,
+    stopSpinner
 };

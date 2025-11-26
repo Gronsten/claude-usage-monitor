@@ -5,6 +5,35 @@ const { ClaudeUsageScraper } = require("./scraper");
 const { UsageHistory } = require("./usageHistory");
 const { calculateResetClockTime } = require("./utils");
 
+/**
+ * Get currency symbol for a currency code
+ * @param {string} currency - ISO 4217 currency code (e.g., "USD", "AUD", "EUR")
+ * @returns {string} Currency symbol
+ */
+function getCurrencySymbol(currency) {
+  const symbols = {
+    USD: '$',
+    AUD: '$',
+    CAD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+    CNY: '¥',
+    KRW: '₩',
+    INR: '₹',
+    BRL: 'R$',
+    MXN: '$',
+    CHF: 'CHF ',
+    SEK: 'kr',
+    NOK: 'kr',
+    DKK: 'kr',
+    NZD: '$',
+    SGD: '$',
+    HKD: '$',
+  };
+  return symbols[currency] || '';
+}
+
 class UsageDataProvider {
   constructor() {
     this._onDidChangeTreeData = new vscode.EventEmitter();
@@ -167,6 +196,28 @@ class UsageDataProvider {
       );
     }
 
+    // --- EXTRA USAGE (Overage/Spend Limit) ---
+    if (this.usageData.monthlyCredits) {
+      const credits = this.usageData.monthlyCredits;
+      let creditsLevel = "normal";
+      if (credits.percent >= 90) creditsLevel = "critical";
+      else if (credits.percent >= 75) creditsLevel = "warning";
+
+      // Format as currency (e.g., "$6,313 / $10,000 AUD")
+      const currencySymbol = getCurrencySymbol(credits.currency);
+      const usedFormatted = `${currencySymbol}${credits.used.toLocaleString()}`;
+      const limitFormatted = `${currencySymbol}${credits.limit.toLocaleString()}`;
+
+      items.push(
+        new UsageTreeItem(
+          "Extra Usage",
+          `${usedFormatted} / ${limitFormatted} ${credits.currency} (${credits.percent}%)`,
+          vscode.TreeItemCollapsibleState.None,
+          creditsLevel
+        )
+      );
+    }
+
     // --- ACTIVITY STATUS ---
     if (this.activityStats && this.activityStats.description) {
       const statusIcon = this.activityStats.level === 'heavy' ? 'critical' :
@@ -198,78 +249,51 @@ class UsageDataProvider {
    * Fetch usage data from Claude.ai
    * Note: This method is resilient - it will succeed even if web scraping fails
    * since session token data is read from local JSON file independently
+   * @returns {Object} Result with webError property if web scrape failed
    */
   async fetchUsage() {
-    return vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: "Fetching Claude usage data...",
-        cancellable: false,
-      },
-      async (progress) => {
-        let webScrapeFailed = false;
-        let webScrapeError = null;
+    let webScrapeError = null;
 
-        try {
-          progress.report({ increment: 0, message: "Initializing browser..." });
+    try {
+      // Check if we have an existing session for smart headless mode
+      const hasSession = this.scraper.hasExistingSession();
 
-          // Check if we have an existing session for smart headless mode
-          const hasSession = this.scraper.hasExistingSession();
-          const needsLogin = this.isFirstFetch && !hasSession;
-
-          // Initialize scraper if needed
-          // Show browser window only if login is required
-          if (!this.scraper.isInitialized) {
-            await this.scraper.initialize(!hasSession);
-          }
-
-          progress.report({
-            increment: 30,
-            message: "Checking authentication...",
-          });
-
-          // Ensure logged in (only needed first time)
-          if (this.isFirstFetch) {
-            await this.scraper.ensureLoggedIn();
-            this.isFirstFetch = false;
-          }
-
-          progress.report({ increment: 60, message: "Fetching usage data..." });
-
-          // Fetch usage data from web scrape
-          this.usageData = await this.scraper.fetchUsageData();
-
-          // Save data point to history for sparkline generation
-          if (this.usageData) {
-            await this.usageHistory.addDataPoint(this.usageData.usagePercent);
-          }
-
-          progress.report({ increment: 100, message: "Complete!" });
-        } catch (error) {
-          // Web scrape failed, but don't fail the entire operation
-          // Session token data can still be read from local JSON
-          console.error("Web scrape failed:", error);
-          webScrapeFailed = true;
-          webScrapeError = error;
-
-          // Keep existing usage data if available, or set to null
-          if (!this.usageData) {
-            this.usageData = null;
-          }
-        }
-
-        // Always refresh tree view (will show session data even if web scrape failed)
-        this.refresh();
-
-        // Only show notification if web scrape failed
-        if (webScrapeFailed) {
-          vscode.window.showWarningMessage(
-            `⚠️ Web scrape failed: ${webScrapeError.message}. Session token data still available.`
-          );
-        }
-        // Success case: silently update status bar (no popup)
+      // Initialize scraper if needed
+      // Show browser window only if login is required
+      if (!this.scraper.isInitialized) {
+        await this.scraper.initialize(!hasSession);
       }
-    );
+
+      // Ensure logged in (only needed first time)
+      if (this.isFirstFetch) {
+        await this.scraper.ensureLoggedIn();
+        this.isFirstFetch = false;
+      }
+
+      // Fetch usage data from web scrape
+      this.usageData = await this.scraper.fetchUsageData();
+
+      // Save data point to history for sparkline generation
+      if (this.usageData) {
+        await this.usageHistory.addDataPoint(this.usageData.usagePercent);
+      }
+    } catch (error) {
+      // Web scrape failed, but don't fail the entire operation
+      // Session token data can still be read from local JSON
+      console.error("Web scrape failed:", error);
+      webScrapeError = error;
+
+      // Keep existing usage data if available, or set to null
+      if (!this.usageData) {
+        this.usageData = null;
+      }
+    }
+
+    // Always refresh tree view (will show session data even if web scrape failed)
+    this.refresh();
+
+    // Return result with any error for caller to handle
+    return { webError: webScrapeError };
   }
 
   /**

@@ -1,6 +1,6 @@
 const vscode = require('vscode');
 const { UsageDataProvider } = require('./src/dataProvider');
-const { createStatusBarItem, updateStatusBar } = require('./src/statusBar');
+const { createStatusBarItem, updateStatusBar, startSpinner, stopSpinner } = require('./src/statusBar');
 const { ActivityMonitor } = require('./src/activityMonitor');
 const { SessionTracker } = require('./src/sessionTracker');
 const { ClaudeDataLoader } = require('./src/claudeDataLoader');
@@ -198,11 +198,25 @@ async function activate(context) {
     // Register commands
     context.subscriptions.push(
         vscode.commands.registerCommand('claude-usage.fetchNow', async () => {
+            let webError = null;
+            let tokenError = null;
             try {
-                await dataProvider.fetchUsage();
+                startSpinner();
+                const result = await dataProvider.fetchUsage();
+                webError = result.webError;
+
+                // Check if token data is available
+                const sessionData = sessionTracker ? await sessionTracker.getCurrentSession() : null;
+                if (!sessionData || !sessionData.tokenUsage) {
+                    tokenError = new Error('No token data available');
+                }
+
                 await updateStatusBarWithAllData();
             } catch (error) {
+                webError = webError || error;
                 vscode.window.showErrorMessage(`Failed to fetch Claude usage: ${error.message}`);
+            } finally {
+                stopSpinner(webError, tokenError);
             }
         })
     );
@@ -244,17 +258,93 @@ async function activate(context) {
         })
     );
 
+    // Show Debug Output command
+    context.subscriptions.push(
+        vscode.commands.registerCommand('claude-usage.showDebug', async () => {
+            const { getDebugChannel } = require('./src/scraper');
+            const debugChannel = getDebugChannel();
+
+            // Add diagnostic info
+            debugChannel.appendLine(`\n=== DIAGNOSTICS (${new Date().toLocaleString()}) ===`);
+
+            if (dataProvider && dataProvider.scraper) {
+                const diag = dataProvider.scraper.getDiagnostics();
+                debugChannel.appendLine('Scraper State:');
+                debugChannel.appendLine(`  Initialized: ${diag.isInitialized}`);
+                debugChannel.appendLine(`  Connected Browser: ${diag.isConnectedBrowser}`);
+                debugChannel.appendLine(`  Has Browser: ${diag.hasBrowser}`);
+                debugChannel.appendLine(`  Has Page: ${diag.hasPage}`);
+                debugChannel.appendLine(`  Has API Endpoint: ${diag.hasApiEndpoint}`);
+                debugChannel.appendLine(`  Has API Headers: ${diag.hasApiHeaders}`);
+                debugChannel.appendLine(`  Has Credits Endpoint: ${diag.hasCreditsEndpoint}`);
+                debugChannel.appendLine(`  Has Overage Endpoint: ${diag.hasOverageEndpoint}`);
+                debugChannel.appendLine(`  Captured Endpoints: ${diag.capturedEndpointsCount}`);
+                debugChannel.appendLine(`  Session Dir: ${diag.sessionDir}`);
+                debugChannel.appendLine(`  Has Existing Session: ${diag.hasExistingSession}`);
+            } else {
+                debugChannel.appendLine('Scraper not initialized');
+            }
+
+            // Show usage data state
+            debugChannel.appendLine('');
+            debugChannel.appendLine('Usage Data State:');
+            if (dataProvider && dataProvider.usageData) {
+                debugChannel.appendLine(`  Last Updated: ${dataProvider.usageData.timestamp}`);
+                debugChannel.appendLine(`  5hr Usage: ${dataProvider.usageData.usagePercent}%`);
+                debugChannel.appendLine(`  Weekly Usage: ${dataProvider.usageData.usagePercentWeek}%`);
+                debugChannel.appendLine(`  Has Monthly Credits: ${!!dataProvider.usageData.monthlyCredits}`);
+            } else {
+                debugChannel.appendLine('  No usage data available');
+            }
+
+            debugChannel.appendLine('=== END DIAGNOSTICS ===');
+            debugChannel.show(true);
+        })
+    );
+
+    // Reset Connection command
+    context.subscriptions.push(
+        vscode.commands.registerCommand('claude-usage.resetConnection', async () => {
+            try {
+                if (dataProvider && dataProvider.scraper) {
+                    const result = await dataProvider.scraper.reset();
+                    // Reset first fetch flag so it re-authenticates
+                    dataProvider.isFirstFetch = true;
+                    vscode.window.showInformationMessage(result.message);
+                } else {
+                    vscode.window.showWarningMessage('Scraper not initialized');
+                }
+            } catch (error) {
+                vscode.window.showErrorMessage(`Reset failed: ${error.message}`);
+            }
+        })
+    );
+
     // Get configuration
     const config = vscode.workspace.getConfiguration('claudeUsage');
 
     // Fetch on startup if configured
     if (config.get('fetchOnStartup', true)) {
         setTimeout(async () => {
+            let webError = null;
+            let tokenError = null;
             try {
-                await dataProvider.fetchUsage();
+                startSpinner();
+                const result = await dataProvider.fetchUsage();
+                webError = result.webError;
+
+                // Check if token data is available
+                const sessionData = sessionTracker ? await sessionTracker.getCurrentSession() : null;
+                if (!sessionData || !sessionData.tokenUsage) {
+                    tokenError = new Error('No token data available');
+                }
+
                 await updateStatusBarWithAllData();
             } catch (error) {
+                webError = webError || error;
                 console.error('Failed to fetch usage on startup:', error);
+            } finally {
+                stopSpinner(webError, tokenError);
             }
         }, 2000); // Wait 2 seconds after activation
     }
@@ -266,11 +356,25 @@ async function activate(context) {
 
     if (autoRefreshMinutes > 0) {
         autoRefreshTimer = setInterval(async () => {
+            let webError = null;
+            let tokenError = null;
             try {
-                await dataProvider.fetchUsage();
+                startSpinner();
+                const result = await dataProvider.fetchUsage();
+                webError = result.webError;
+
+                // Check if token data is available
+                const sessionData = sessionTracker ? await sessionTracker.getCurrentSession() : null;
+                if (!sessionData || !sessionData.tokenUsage) {
+                    tokenError = new Error('No token data available');
+                }
+
                 await updateStatusBarWithAllData();
             } catch (error) {
+                webError = webError || error;
                 console.error('Failed to auto-refresh usage:', error);
+            } finally {
+                stopSpinner(webError, tokenError);
             }
         }, autoRefreshMinutes * 60 * 1000);
 
@@ -295,11 +399,25 @@ async function activate(context) {
 
                 if (newAutoRefresh > 0) {
                     autoRefreshTimer = setInterval(async () => {
+                        let webError = null;
+                        let tokenError = null;
                         try {
-                            await dataProvider.fetchUsage();
+                            startSpinner();
+                            const result = await dataProvider.fetchUsage();
+                            webError = result.webError;
+
+                            // Check if token data is available
+                            const sessionData = sessionTracker ? await sessionTracker.getCurrentSession() : null;
+                            if (!sessionData || !sessionData.tokenUsage) {
+                                tokenError = new Error('No token data available');
+                            }
+
                             await updateStatusBarWithAllData();
                         } catch (error) {
+                            webError = webError || error;
                             console.error('Failed to auto-refresh usage:', error);
+                        } finally {
+                            stopSpinner(webError, tokenError);
                         }
                     }, newAutoRefresh * 60 * 1000);
 

@@ -1,7 +1,7 @@
 # Claude Usage Monitor - Architecture Guide
 
-**Version:** 2.5.0
-**Last Updated:** 2025-11-24
+**Version:** 2.6.1
+**Last Updated:** 2025-11-26
 **Purpose:** Technical architecture reference for Claude AI assistant sessions
 
 ---
@@ -748,7 +748,7 @@ Return: {
 {
   "name": "claude-session-usage",
   "displayName": "Claude Session Usage",
-  "version": "2.3.9",
+  "version": "2.6.1",
   "publisher": "Gronsten",
   "engines": { "vscode": "^1.80.0" }
 }

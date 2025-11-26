@@ -5,7 +5,7 @@
 Monitor your Claude usage from both Claude.ai web client and Claude Code sessions directly in VS Code. This extension tracks web usage via direct API access (with intelligent fallback to web scraping) and monitors Claude Code token consumption through intelligent session tracking that automatically detects usage from your active conversation, even when multiple conversations are open.
 
 > [!TIP]
-> **NEW in v2.3.8:** Professional screenshots added to marketplace listing showcasing status bar integration, detailed tooltips, tree view panel, and configuration settings!
+> **NEW in v2.6:** November 2025 subscription changes support with Sonnet/Opus weekly tracking, Extra Usage monitoring, and configurable status bar items!
 
 > [!NOTE]
 > **Dual Monitoring:** This extension tracks BOTH Claude.ai web usage (5-hour and 7-day limits) AND your Claude Code session token consumption in real-time with intelligent session detection.
@@ -40,30 +40,34 @@ Simple configuration options for auto-refresh intervals and behavior customizati
 
 ## Features
 
-- **Direct API Access** 🚀: Fast, reliable data retrieval using Claude.ai's internal API
+- **Direct API Access**: Fast, reliable data retrieval using Claude.ai's internal API
   - 2-3x faster than traditional web scraping
   - More reliable (JSON parsing vs HTML regex)
   - Intelligent fallback to HTML scraping if API fails
-  - No breaking changes when Claude.ai updates their UI
-- **Dual Usage Monitoring**: Track both Claude.ai usage AND development session token usage
-  - Claude.ai 5-hour and 7-day usage percentages
-  - Current session token count (from `session-data.json`)
-  - Automatically updated when developing with Claude Code (see [SESSION_TRACKING.md](SESSION_TRACKING.md))
-- **Enhanced Usage Metrics**: Separate tracking for different time windows
-  - 5-hour usage limit with reset time
-  - 7-day rolling usage with weekly reset
-  - Color-coded indicators for both metrics
-- **Status Bar Integration**: See both percentages at a glance (e.g., "Claude: 45% | Tokens: 26%")
-- **Tree View Panel**: Detailed usage information in a dedicated side panel
-- **Configurable Auto-Refresh**: Customizable refresh interval (1-60 minutes, default 5 minutes)
-- **Usage Level Indicator**: Shows how much "Claude time" remains (Idle/Light/Moderate/Heavy)
-  - Based on max of Claude.ai usage % or session token %
-  - Idle (0-24%): Plenty of Claude time! | Light (25-49%): Quarter+ used
-  - Moderate (50-79%): Much work, many thought | Heavy (80-100%): Running low!
-- **Auto-Start**: Fetches usage data automatically when VS Code starts
-- **Silent Mode**: Runs browser in headless (hidden) mode, shows window only if login needed
-- **Session Persistence**: Log in once, stay authenticated across VS Code sessions
-- **Visual Indicators**: Color-coded warnings when approaching usage limits
+- **Comprehensive Usage Tracking**: Monitor all Claude.ai usage metrics
+  - 5-hour session usage with reset countdown
+  - 7-day rolling weekly usage
+  - Sonnet model weekly usage
+  - Opus model weekly usage (Max plans)
+  - Extra Usage (spending cap) monitoring
+- **Claude Code Token Tracking**: Real-time monitoring of development sessions
+  - Automatic JSONL file monitoring
+  - Per-project token tracking
+  - Input, output, and cache token breakdown
+- **Configurable Status Bar**: Choose which metrics to display
+  - Session (5hr), Weekly (7d), Sonnet, Opus, Tokens, Credits
+  - Each metric can be shown/hidden independently
+  - Color-coded warnings (configurable thresholds)
+- **Tree View Panel**: Detailed usage breakdown in activity bar
+  - All metrics with sparkline graphs
+  - Reset times and percentages
+  - Activity level descriptions
+- **Configurable Thresholds**: Customize warning and error levels
+  - Warning threshold (default 75%)
+  - Error threshold (default 90%)
+- **Auto-Refresh**: Configurable interval (1-60 minutes, default 5)
+- **Silent Mode**: Runs browser in headless mode, shows only if login needed
+- **Session Persistence**: Log in once, stay authenticated across sessions
 
 ## Installation
 

@@ -3,6 +3,24 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const vscode = require('vscode');
+const {
+    USAGE_API_SCHEMA,
+    API_ENDPOINTS,
+    extractFromSchema,
+    matchesEndpoint,
+    processOverageData,
+    getSchemaInfo,
+} = require('./apiSchema');
+
+// Debug output channel for API responses
+let debugChannel = null;
+
+function getDebugChannel() {
+    if (!debugChannel) {
+        debugChannel = vscode.window.createOutputChannel('Claude Usage - API Debug');
+    }
+    return debugChannel;
+}
 
 class ClaudeUsageScraper {
     constructor() {
@@ -294,22 +312,73 @@ class ClaudeUsageScraper {
             // Enable request interception
             await this.page.setRequestInterception(true);
 
+            // Store all captured API endpoints for debugging
+            this.capturedEndpoints = [];
+
             // Listen for API requests
             this.page.on('request', (request) => {
                 const url = request.url();
 
-                // Capture the usage API endpoint
-                if (url.includes('/api/organizations/') && url.includes('/usage')) {
+                // Log ALL API calls to debug channel for discovery
+                if (url.includes('/api/')) {
+                    const debugOutput = getDebugChannel();
+                    debugOutput.appendLine(`[REQUEST] ${request.method()} ${url}`);
+                    this.capturedEndpoints.push({ method: request.method(), url });
+                }
+
+                // Capture endpoints using schema definitions (see apiSchema.js)
+                if (matchesEndpoint(url, API_ENDPOINTS.usage)) {
                     this.apiEndpoint = url;
                     this.apiHeaders = {
                         ...request.headers(),
                         'Content-Type': 'application/json'
                     };
-                    console.log('Captured API endpoint:', this.apiEndpoint);
+                    console.log('Captured usage endpoint:', this.apiEndpoint);
+                }
+
+                if (matchesEndpoint(url, API_ENDPOINTS.prepaidCredits)) {
+                    this.creditsEndpoint = url;
+                    console.log('Captured credits endpoint:', this.creditsEndpoint);
+                }
+
+                if (matchesEndpoint(url, API_ENDPOINTS.overageSpendLimit)) {
+                    this.overageEndpoint = url;
+                    console.log('Captured overage endpoint:', this.overageEndpoint);
                 }
 
                 // Always continue the request
                 request.continue();
+            });
+
+            // Also listen for responses to capture response data
+            this.page.on('response', async (response) => {
+                const url = response.url();
+
+                // Log API responses with their data
+                if (url.includes('/api/') && response.status() === 200) {
+                    try {
+                        const contentType = response.headers()['content-type'] || '';
+                        if (contentType.includes('application/json')) {
+                            const data = await response.json();
+                            const debugOutput = getDebugChannel();
+                            debugOutput.appendLine(`[RESPONSE] ${url}`);
+                            debugOutput.appendLine(JSON.stringify(data, null, 2));
+                            debugOutput.appendLine('---');
+
+                            // Highlight important endpoints
+                            if (url.includes('/prepaid/credits')) {
+                                debugOutput.appendLine('*** PREPAID CREDITS DATA ABOVE ***');
+                            }
+                            if (url.includes('/overage_spend_limit')) {
+                                debugOutput.appendLine('*** OVERAGE SPEND LIMIT DATA ABOVE ***');
+                            }
+
+                            debugOutput.show(true); // Keep channel visible
+                        }
+                    } catch (e) {
+                        // Ignore parse errors
+                    }
+                }
             });
 
             console.log('Request interception enabled for API capture');
@@ -358,41 +427,45 @@ class ClaudeUsageScraper {
 
     /**
      * Process API response and convert to expected format
+     * Uses schema from apiSchema.js for easy updates when API changes
+     *
      * @param {object} apiResponse - Raw API response
+     * @param {object} creditsData - Optional prepaid credits data
+     * @param {object} overageData - Optional overage spend limit data
      * @returns {object} Processed usage data
      */
-    processApiResponse(apiResponse) {
+    processApiResponse(apiResponse, creditsData = null, overageData = null) {
         try {
-            // 5-hour session limit
-            const fiveHoursUsage = apiResponse.five_hour?.utilization || 0;
-            const resetsAtFiveHour = apiResponse.five_hour?.resets_at;
+            // Extract all fields using schema (see apiSchema.js for field mappings)
+            const data = extractFromSchema(apiResponse, USAGE_API_SCHEMA);
 
-            // 7-day overall limit (all models combined)
-            const sevenDayUsage = apiResponse.seven_day?.utilization || 0;
-            const resetsAt = apiResponse.seven_day?.resets_at;
-
-            // 7-day Sonnet-only limit (Nov 2025 addition)
-            // Use nullish coalescing (??) to preserve 0 values - only null/undefined become null
-            const sevenDaySonnetUsage = apiResponse.seven_day_sonnet?.utilization ?? null;
-            const resetsAtSonnet = apiResponse.seven_day_sonnet?.resets_at;
-
-            // 7-day Opus limit (may be null if removed/not applicable)
-            // Use nullish coalescing (??) to preserve 0 values - only null/undefined become null
-            const sevenDayOpusUsage = apiResponse.seven_day_opus?.utilization ?? null;
-            const resetsAtOpus = apiResponse.seven_day_opus?.resets_at;
+            // Process overage data using schema helper
+            const monthlyCredits = processOverageData(overageData);
 
             return {
-                usagePercent: fiveHoursUsage,
-                resetTime: this.calculateResetTime(resetsAtFiveHour),
-                usagePercentWeek: sevenDayUsage,
-                resetTimeWeek: this.calculateResetTime(resetsAt),
-                // New fields (Nov 2025)
-                usagePercentSonnet: sevenDaySonnetUsage,
-                resetTimeSonnet: this.calculateResetTime(resetsAtSonnet),
-                usagePercentOpus: sevenDayOpusUsage,
-                resetTimeOpus: this.calculateResetTime(resetsAtOpus),
+                // 5-hour session
+                usagePercent: data.fiveHour.utilization,
+                resetTime: this.calculateResetTime(data.fiveHour.resetsAt),
+
+                // 7-day overall
+                usagePercentWeek: data.sevenDay.utilization,
+                resetTimeWeek: this.calculateResetTime(data.sevenDay.resetsAt),
+
+                // 7-day per-model (Nov 2025)
+                usagePercentSonnet: data.sevenDaySonnet.utilization,
+                resetTimeSonnet: this.calculateResetTime(data.sevenDaySonnet.resetsAt),
+                usagePercentOpus: data.sevenDayOpus.utilization,
+                resetTimeOpus: this.calculateResetTime(data.sevenDayOpus.resetsAt),
+
+                // Extra usage / prepaid credits
+                extraUsage: data.extraUsage.value,
+                prepaidCredits: creditsData ?? null,
+                monthlyCredits: monthlyCredits,
+
+                // Metadata
                 timestamp: new Date(),
-                rawData: apiResponse // Keep raw data for future use
+                rawData: apiResponse,  // Keep raw data for debugging
+                schemaVersion: getSchemaInfo().version,  // Track which schema version was used
             };
 
         } catch (error) {
@@ -417,9 +490,18 @@ class ClaudeUsageScraper {
             await this.sleep(2000);
 
             // If we captured the API endpoint, use it directly for faster, more reliable data
+            const debugOutput = getDebugChannel();
+            debugOutput.show(true); // Show debug channel (don't steal focus)
+            debugOutput.appendLine(`\n=== FETCH ATTEMPT (${new Date().toLocaleString()}) ===`);
+            debugOutput.appendLine(`API endpoint captured: ${this.apiEndpoint ? 'YES' : 'NO'}`);
+            debugOutput.appendLine(`API headers captured: ${this.apiHeaders ? 'YES' : 'NO'}`);
+            debugOutput.appendLine(`Credits endpoint captured: ${this.creditsEndpoint ? 'YES' : 'NO'}`);
+            debugOutput.appendLine(`Overage endpoint captured: ${this.overageEndpoint ? 'YES' : 'NO'}`);
+
             if (this.apiEndpoint && this.apiHeaders) {
                 try {
                     console.log('Using captured API endpoint for direct access');
+                    debugOutput.appendLine('Attempting direct API fetch...');
 
                     // Get cookies from the page context
                     const cookies = await this.page.cookies();
@@ -442,18 +524,81 @@ class ClaudeUsageScraper {
                         return await response.json();
                     }, this.apiEndpoint, this.apiHeaders, cookieString);
 
+                    // Log raw API response for debugging
+                    debugOutput.appendLine('Direct API fetch SUCCESS!');
+                    debugOutput.appendLine(`=== RAW USAGE API RESPONSE ===`);
+                    debugOutput.appendLine(JSON.stringify(response, null, 2));
+                    debugOutput.appendLine('=== END RAW USAGE API RESPONSE ===');
+
+                    // Also fetch prepaid credits if endpoint is available
+                    let creditsData = null;
+                    if (this.creditsEndpoint) {
+                        try {
+                            creditsData = await this.page.evaluate(async (endpoint, headers, cookieString) => {
+                                const resp = await fetch(endpoint, {
+                                    method: 'GET',
+                                    headers: { ...headers, 'Cookie': cookieString }
+                                });
+                                if (resp.ok) {
+                                    return await resp.json();
+                                }
+                                return null;
+                            }, this.creditsEndpoint, this.apiHeaders, cookieString);
+
+                            if (creditsData) {
+                                debugOutput.appendLine('=== PREPAID CREDITS RESPONSE ===');
+                                debugOutput.appendLine(JSON.stringify(creditsData, null, 2));
+                                debugOutput.appendLine('=== END PREPAID CREDITS RESPONSE ===');
+                            }
+                        } catch (creditsError) {
+                            debugOutput.appendLine(`Credits fetch error: ${creditsError.message}`);
+                        }
+                    }
+
+                    // Fetch overage/spend limit data (contains monthly credit usage)
+                    let overageData = null;
+                    if (this.overageEndpoint) {
+                        try {
+                            overageData = await this.page.evaluate(async (endpoint, headers, cookieString) => {
+                                const resp = await fetch(endpoint, {
+                                    method: 'GET',
+                                    headers: { ...headers, 'Cookie': cookieString }
+                                });
+                                if (resp.ok) {
+                                    return await resp.json();
+                                }
+                                return null;
+                            }, this.overageEndpoint, this.apiHeaders, cookieString);
+
+                            if (overageData) {
+                                debugOutput.appendLine('=== OVERAGE SPEND LIMIT RESPONSE ===');
+                                debugOutput.appendLine(JSON.stringify(overageData, null, 2));
+                                debugOutput.appendLine('=== END OVERAGE SPEND LIMIT RESPONSE ===');
+                            }
+                        } catch (overageError) {
+                            debugOutput.appendLine(`Overage fetch error: ${overageError.message}`);
+                        }
+                    }
+
+                    debugOutput.appendLine('');
+                    debugOutput.show(true); // Show channel but don't steal focus
+
                     // Process API response and return
                     console.log('Successfully fetched data via API');
-                    return this.processApiResponse(response);
+                    return this.processApiResponse(response, creditsData, overageData);
 
                 } catch (apiError) {
                     console.log('API call failed, falling back to HTML scraping:', apiError.message);
+                    debugOutput.appendLine(`Direct API fetch FAILED: ${apiError.message}`);
                     // Fall through to HTML scraping fallback
                 }
+            } else {
+                debugOutput.appendLine('Skipping direct API - endpoint or headers not captured yet');
             }
 
             // Fallback: Extract text content and parse usage data from HTML
             console.log('Using HTML scraping method');
+            debugOutput.appendLine('Falling back to HTML scraping method...');
             const data = await this.page.evaluate(() => {
                 const bodyText = document.body.innerText;
 
@@ -511,6 +656,57 @@ class ClaudeUsageScraper {
             this.isConnectedBrowser = false;
         }
     }
+
+    /**
+     * Reset the scraper - close connection and clear all captured endpoints
+     * Useful for debugging or recovering from a bad state
+     */
+    async reset() {
+        const debugOutput = getDebugChannel();
+        debugOutput.appendLine(`\n=== RESET CONNECTION (${new Date().toLocaleString()}) ===`);
+
+        // Close existing connection
+        await this.close();
+
+        // Clear captured endpoints
+        this.apiEndpoint = null;
+        this.apiHeaders = null;
+        this.creditsEndpoint = null;
+        this.overageEndpoint = null;
+        this.capturedEndpoints = [];
+
+        debugOutput.appendLine('Browser connection closed');
+        debugOutput.appendLine('All captured API endpoints cleared');
+        debugOutput.appendLine('Ready for fresh connection on next fetch');
+        debugOutput.show(true);
+
+        return { success: true, message: 'Connection reset successfully' };
+    }
+
+    /**
+     * Get diagnostic information about current state
+     * @returns {object} Diagnostic info
+     */
+    getDiagnostics() {
+        const schemaInfo = getSchemaInfo();
+        return {
+            isInitialized: this.isInitialized,
+            isConnectedBrowser: this.isConnectedBrowser,
+            hasBrowser: !!this.browser,
+            hasPage: !!this.page,
+            hasApiEndpoint: !!this.apiEndpoint,
+            hasApiHeaders: !!this.apiHeaders,
+            hasCreditsEndpoint: !!this.creditsEndpoint,
+            hasOverageEndpoint: !!this.overageEndpoint,
+            capturedEndpointsCount: this.capturedEndpoints?.length || 0,
+            sessionDir: this.sessionDir,
+            hasExistingSession: this.hasExistingSession(),
+            // Schema info for debugging API changes
+            schemaVersion: schemaInfo.version,
+            schemaFields: schemaInfo.usageFields,
+            schemaEndpoints: schemaInfo.endpoints,
+        };
+    }
 }
 
-module.exports = { ClaudeUsageScraper };
+module.exports = { ClaudeUsageScraper, getDebugChannel };

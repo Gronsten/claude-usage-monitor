@@ -59,16 +59,21 @@ Press `Ctrl+,` to open settings and search for "Claude Usage":
 {
   "claudeUsage.fetchOnStartup": true,            // Auto-fetch when VS Code starts (DEFAULT)
   "claudeUsage.headless": true,                  // Run browser in background (DEFAULT)
-  "claudeUsage.activityBasedRefresh": true,      // Smart refresh based on activity (DEFAULT)
-  "claudeUsage.autoRefreshMinutes": 15           // Fixed interval (if activity-based disabled)
+  "claudeUsage.autoRefreshMinutes": 5,           // Refresh interval 1-60 minutes (DEFAULT: 5)
+  "claudeUsage.statusBar.showSession": true,     // Show 5-hour session usage (DEFAULT)
+  "claudeUsage.statusBar.showWeekly": true,      // Show 7-day weekly usage (DEFAULT)
+  "claudeUsage.statusBar.showTokens": true       // Show token usage (DEFAULT)
 }
 ```
 
-**New Feature**: Activity-based refresh automatically adjusts timing:
-- Heavy coding: Every 5 minutes
-- Moderate work: Every 15 minutes
-- Light activity: Every 30 minutes
-- Idle: Every 60 minutes
+**Status Bar Options**: Configure which metrics appear in status bar:
+
+- `showSession`: 5-hour session usage
+- `showWeekly`: 7-day rolling usage
+- `showSonnet`: Sonnet model weekly usage
+- `showOpus`: Opus model weekly usage (Max plans)
+- `showTokens`: Claude Code token usage
+- `showCredits`: Extra usage (spending cap)
 
 ## 📦 Packaging for Distribution
 
@@ -142,11 +147,11 @@ npm run publish
 - Shows color-coded usage indicators
 - Provides tooltips
 
-### src/activityMonitor.js (NEW)
-- Monitors VS Code text edits, file saves, editor changes
-- Calculates activity level (heavy/moderate/light/idle)
-- Recommends refresh intervals based on activity
-- Resets counters every 15 minutes
+### src/activityMonitor.js
+
+- Calculates usage level based on Claude.ai and token usage
+- Returns activity level (heavy/moderate/idle)
+- Provides quirky descriptions for tooltip display
 
 ## 🐛 Troubleshooting
 
@@ -178,9 +183,9 @@ npm install puppeteer
 - **Smart Defaults**: Extension is pre-configured for optimal experience
 - **First login**: Browser shows automatically when needed
 - **After login**: Runs silently in background (headless mode)
-- **Activity-based refresh**: Adjusts automatically based on your coding
+- **Auto refresh**: Configurable interval (1-60 minutes, default 5)
 - **Manual fetch**: Click status bar or use Command Palette anytime
-- **Debug mode**: Check console logs for activity level and next refresh time
+- **Configurable display**: Show/hide individual status bar metrics in settings
 
 ## 🎉 Success Criteria
 
