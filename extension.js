@@ -370,6 +370,27 @@ async function activate(context) {
         })
     );
 
+    // Open Browser command - force open browser for login
+    context.subscriptions.push(
+        vscode.commands.registerCommand('claude-usage.openBrowser', async () => {
+            try {
+                if (dataProvider && dataProvider.scraper) {
+                    vscode.window.showInformationMessage('Opening browser for Claude.ai login...');
+                    const result = await dataProvider.scraper.forceOpenBrowser();
+                    if (result.success) {
+                        vscode.window.showInformationMessage(result.message);
+                    } else {
+                        vscode.window.showErrorMessage(result.message);
+                    }
+                } else {
+                    vscode.window.showWarningMessage('Scraper not initialized');
+                }
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to open browser: ${error.message}`);
+            }
+        })
+    );
+
     // Get configuration
     const config = vscode.workspace.getConfiguration('claudeUsage');
 

@@ -299,23 +299,44 @@ class ClaudeUsageScraper {
 
             // If URL contains 'login' or 'auth', user needs to log in
             if (currentUrl.includes('login') || currentUrl.includes('auth')) {
+                // Automatically relaunch browser in headed mode so user can see login page
                 vscode.window.showInformationMessage(
-                    'Please log in to Claude.ai in the browser window. The extension will continue once you are logged in.',
-                    { modal: false }
+                    'Login required. Opening browser for Claude.ai login...'
                 );
+                await this.forceOpenBrowser();
 
-                // Wait for navigation away from login page (max 5 minutes)
-                try {
-                    await this.page.waitForFunction(
-                        () => {
-                            const url = window.location.href;
-                            return !url.includes('login') && !url.includes('auth');
-                        },
-                        { timeout: 300000 } // 5 minutes
-                    );
+                // Wait for login to complete (max 5 minutes)
+                // Magic link flow: user may open link in another tab, so we poll
+                // by refreshing the usage page to check if session is now valid
+                const maxWaitTime = 300000; // 5 minutes
+                const pollInterval = 3000; // Check every 3 seconds
+                const startTime = Date.now();
+                let loggedIn = false;
 
+                while (Date.now() - startTime < maxWaitTime) {
+                    await this.sleep(pollInterval);
+
+                    try {
+                        // Try navigating to the usage page to check if logged in
+                        await this.page.goto('https://claude.ai/settings/usage', {
+                            waitUntil: 'networkidle2',
+                            timeout: 10000
+                        });
+
+                        const checkUrl = this.page.url();
+                        if (!checkUrl.includes('login') && !checkUrl.includes('auth')) {
+                            loggedIn = true;
+                            break;
+                        }
+                    } catch (navError) {
+                        // Navigation error, continue polling
+                        console.log('Login check navigation error:', navError.message);
+                    }
+                }
+
+                if (loggedIn) {
                     vscode.window.showInformationMessage('Login successful! Session saved for future use.');
-                } catch (timeoutError) {
+                } else {
                     throw new Error('Login timeout. Please try again and complete the login process.');
                 }
             }
@@ -756,6 +777,96 @@ class ClaudeUsageScraper {
         }
 
         return { success: true, message: 'Session cleared successfully. Next fetch will prompt for login.' };
+    }
+
+    /**
+     * Force open browser in headed (visible) mode for login
+     * Closes any existing browser and relaunches visibly
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    async forceOpenBrowser() {
+        const debug = isDebugEnabled();
+        if (debug) {
+            const debugOutput = getDebugChannel();
+            debugOutput.appendLine(`\n=== FORCE OPEN BROWSER (${new Date().toLocaleString()}) ===`);
+        }
+
+        try {
+            // Close existing browser if any
+            if (this.browser) {
+                try {
+                    if (this.isConnectedBrowser) {
+                        await this.browser.disconnect();
+                    } else {
+                        await this.browser.close();
+                    }
+                } catch (e) {
+                    // Ignore close errors
+                }
+                this.browser = null;
+                this.page = null;
+                this.isInitialized = false;
+            }
+
+            // Launch browser in headed mode (visible)
+            const executablePath = this.findChrome();
+            const launchOptions = {
+                headless: false, // Force visible
+                userDataDir: this.sessionDir,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-blink-features=AutomationControlled',
+                    `--remote-debugging-port=${this.debugPort}`
+                ],
+                defaultViewport: {
+                    width: 1280,
+                    height: 800
+                }
+            };
+
+            if (executablePath) {
+                launchOptions.executablePath = executablePath;
+            }
+
+            if (debug) {
+                const debugOutput = getDebugChannel();
+                debugOutput.appendLine(`Launching headed browser...`);
+                debugOutput.appendLine(`Executable: ${executablePath || 'default'}`);
+            }
+
+            this.browser = await puppeteer.launch(launchOptions);
+            this.page = await this.browser.newPage();
+
+            await this.page.setUserAgent(
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            );
+
+            await this.setupRequestInterception();
+
+            this.isInitialized = true;
+            this.isConnectedBrowser = false;
+
+            // Navigate to login page
+            await this.page.goto('https://claude.ai/login', {
+                waitUntil: 'networkidle2',
+                timeout: 30000
+            });
+
+            if (debug) {
+                const debugOutput = getDebugChannel();
+                debugOutput.appendLine('Browser opened successfully - awaiting login');
+            }
+
+            return { success: true, message: 'Browser opened. Please log in to Claude.ai.' };
+        } catch (error) {
+            if (debug) {
+                const debugOutput = getDebugChannel();
+                debugOutput.appendLine(`Failed to open browser: ${error.message}`);
+            }
+            return { success: false, message: `Failed to open browser: ${error.message}` };
+        }
     }
 
     /**
