@@ -1,3 +1,11 @@
+## [2.6.6](https://github.com/hypersec-io/claude-usage-monitor/compare/v2.6.5...v2.6.6) (2025-11-27)
+
+
+### Bug Fixes
+
+* add Clear Session command to fix stuck login state ([ceef7df](https://github.com/hypersec-io/claude-usage-monitor/commit/ceef7df1d48a270d2b506d011639f0557ce2babe))
+* auto-open browser for login and poll for magic link auth ([4c2d220](https://github.com/hypersec-io/claude-usage-monitor/commit/4c2d2205d2dfc45fd38a6a5c948c171e5299204b))
+
 ## [2.6.5](https://github.com/hypersec-io/claude-usage-monitor/compare/v2.6.4...v2.6.5) (2025-11-26)
 
 
