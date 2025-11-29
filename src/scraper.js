@@ -366,7 +366,8 @@ class ClaudeUsageScraper {
             const fiveHoursUsage = apiResponse.five_hour?.utilization || 0;
             const resetsAtFiveHour = apiResponse.five_hour?.resets_at;
 
-            // Use 7-day utilization as the weekly percentage
+            // Note: seven_day field was deprecated by Claude.ai API
+            // Keeping for backward compatibility but will return 0
             const sevenDayUsage = apiResponse.seven_day?.utilization || 0;
             const resetsAt = apiResponse.seven_day?.resets_at;
 

@@ -27,7 +27,7 @@
 ### What is Claude Usage Monitor?
 
 A VS Code extension providing **dual monitoring** capabilities for Claude usage:
-1. **Claude.ai Web Usage** - Tracks 5-hour and 7-day usage limits via web scraping (with API fallback)
+1. **Claude.ai Web Usage** - Tracks 5-hour usage limit via web scraping (with API fallback)
 2. **Claude Code Token Consumption** - Real-time monitoring of development session token usage through JSONL file tracking
 
 ### Core Design Principles
@@ -225,7 +225,7 @@ let jsonlWatcher;          // File system watcher
 | `ensureLoggedIn()` | Wait for authentication | Max 5 minutes, shows browser if needed |
 | `setupRequestInterception()` | Capture API endpoints | Intercepts `/api/organizations/*/usage` requests |
 | `fetchUsageData()` | **CORE** - Get usage data | API mode (preferred) or HTML mode (fallback) |
-| `processApiResponse(apiResponse)` | Parse API JSON | Extracts `five_hour.utilization` and `seven_day.utilization` |
+| `processApiResponse(apiResponse)` | Parse API JSON | Extracts `five_hour.utilization` (deprecated `seven_day` returns 0) |
 | `calculateResetTime(isoTimestamp)` | Convert ISO to "2h 30m" | Human-readable time until reset |
 | `close()` | Smart cleanup | Disconnect if connected, close if launched |
 
@@ -241,11 +241,8 @@ Response:
   "five_hour": {
     "utilization": 0.45,  // 45%
     "reset_at": "2025-11-19T23:30:00.000Z"
-  },
-  "seven_day": {
-    "utilization": 0.78,  // 78%
-    "reset_at": "2025-11-26T10:00:00.000Z"
   }
+  // Note: "seven_day" field was deprecated by Claude.ai
 }
 ```
 
@@ -352,9 +349,6 @@ Claude Usage
 ├── 📊 Usage (5-hour): 45%
 │   ├── 📈 Sparkline: ▁▁▂▂▃▃▄▅▅▆▆▇▇█▇▆▆▅▅▄▃▃▂▂ (4 hours)
 │   └── ⏰ Resets in: 2h 30m (14:30)
-├── 📊 Usage (7-day): 78%
-│   ├── 📈 Sparkline: ▂▃▄▅▆▇██
-│   └── ⏰ Resets in: 6d 12h (Nov 26, 10:00)
 ├── 🎯 Session Tokens: 45,234 / 200,000 (~23%)
 │   ├── ↗️ Input: 20,123 tokens
 │   ├── ↙️ Output: 15,111 tokens
@@ -446,7 +440,6 @@ Click: Opens tree view panel
 ```markdown
 **Claude.ai Web Usage:**
 - 5-hour: 45% (resets in 2h 30m)
-- 7-day: 78% (resets in 6d 12h)
 
 **Session Token Usage:**
 - Current: 45,234 / 200,000 (~23%)

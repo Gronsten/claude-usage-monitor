@@ -2,7 +2,7 @@
   "name": "claude-session-usage",
   "displayName": "Claude Session Usage",
   "description": "Monitor Claude.ai web usage and Claude Code token consumption directly in VS Code with real-time tracking",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "publisher": "Gronsten",
   "author": {
     "name": "Mark Campbell",
