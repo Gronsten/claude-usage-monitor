@@ -8,7 +8,7 @@ Monitor your Claude usage from both Claude.ai web client and Claude Code session
 > **NEW in v2.3.8:** Professional screenshots added to marketplace listing showcasing status bar integration, detailed tooltips, tree view panel, and configuration settings!
 
 > [!NOTE]
-> **Dual Monitoring:** This extension tracks BOTH Claude.ai web usage (5-hour and 7-day limits) AND your Claude Code session token consumption in real-time with intelligent session detection.
+> **Dual Monitoring:** This extension tracks BOTH Claude.ai web usage (5-hour limit) AND your Claude Code session token consumption in real-time with intelligent session detection.
 
 ## Demo
 
@@ -31,7 +31,7 @@ Hover over the status bar for detailed usage information including reset times a
 ### Tree View Panel
 ![Tree View Panel](screenshots/tree-view.png)
 
-Dedicated activity bar panel with comprehensive usage metrics for both 5-hour and 7-day windows.
+Dedicated activity bar panel with comprehensive usage metrics including 5-hour usage and session token tracking.
 
 ### Configuration Settings
 ![Settings](screenshots/settings.png)
@@ -46,13 +46,12 @@ Simple configuration options for auto-refresh intervals and behavior customizati
   - Intelligent fallback to HTML scraping if API fails
   - No breaking changes when Claude.ai updates their UI
 - **Dual Usage Monitoring**: Track both Claude.ai usage AND development session token usage
-  - Claude.ai 5-hour and 7-day usage percentages
+  - Claude.ai 5-hour usage percentage with reset time
   - Current session token count (from `session-data.json`)
   - Automatically updated when developing with Claude Code (see [SESSION_TRACKING.md](SESSION_TRACKING.md))
-- **Enhanced Usage Metrics**: Separate tracking for different time windows
-  - 5-hour usage limit with reset time
-  - 7-day rolling usage with weekly reset
-  - Color-coded indicators for both metrics
+- **Enhanced Usage Metrics**: Real-time tracking with visual indicators
+  - 5-hour usage limit with countdown timer
+  - Color-coded indicators based on usage levels
 - **Status Bar Integration**: See both percentages at a glance (e.g., "Claude: 45% | Tokens: 26%")
 - **Tree View Panel**: Detailed usage information in a dedicated side panel
 - **Configurable Auto-Refresh**: Customizable refresh interval (1-60 minutes, default 5 minutes)

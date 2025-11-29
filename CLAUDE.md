@@ -99,8 +99,7 @@ JSONL files contain conversation history with format:
 
 The extension now visualizes usage trends:
 - **ASCII Sparklines**: Shows last 8 data points (e.g., `▁▂▃▅▆▇█▇`)
-- **5-Hour Usage**: Sparkline for hourly usage
-- **7-Day Usage**: Sparkline for weekly usage
+- **5-Hour Usage**: Sparkline showing usage trend over time
 - **Automatic Updates**: New data point every 5 minutes
 - **Persistence**: Stored in `claude-usage-history.json`
 

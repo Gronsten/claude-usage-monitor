@@ -2,6 +2,22 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.5.2] - 2025-11-29
+
+### Changed
+- **Documentation Cleanup**: Removed all references to deprecated 7-day usage tracking
+  - Updated README.md to reflect current 5-hour tracking only
+  - Updated ARCHITECTURE.md with deprecation notes for `seven_day` API field
+  - Updated CLAUDE.md to remove weekly usage mentions
+  - Cleaned up historical CHANGELOG.md entries to focus on 5-hour metrics
+  - Added code comments in scraper.js explaining API deprecation
+  - No functional changes - extension continues to work with 5-hour tracking only
+
+### Technical Notes
+- The `seven_day` field from Claude.ai API was deprecated and now returns 0
+- Code maintains backward compatibility for old API responses
+- All user-facing documentation updated to reflect current API behavior
+
 ## [2.5.1] - 2025-11-25
 
 ### Added
@@ -112,7 +128,7 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
   - Detailed breakdown in "Claude Usage - Token Monitor" output channel
 - **ASCII Sparkline Graphs** ✨: Visual usage trends in tree view
   - Last 8 data points displayed as sparkline (e.g., "▁▂▃▅▆▇█▇")
-  - Separate sparklines for 5-hour and 7-day usage
+  - Sparkline for 5-hour usage trends
   - Stored in `claude-usage-history.json` for persistence
   - Updates every 5 minutes with new data points
   - Maximum 24 data points retained (2 hours of history)
@@ -151,10 +167,10 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
   - 2-3x faster than HTML scraping method
   - More reliable (JSON parsing vs regex on changing HTML)
   - Better data quality with structured API responses
-- **7-Day Usage Tracking**: Now displays both 5-hour and 7-day usage metrics
-  - Tree view shows "Usage (5-hour)" and "Usage (7-day)" separately
-  - Weekly reset time displayed when available
-  - Color-coded indicators for both usage types
+- **Enhanced Usage Tracking**: Improved 5-hour usage metrics display
+  - Tree view shows "Usage (5-hour)" with detailed breakdown
+  - Reset time displayed in human-readable format
+  - Color-coded indicators based on usage levels
 - **Enhanced Reset Time Calculation**: Human-readable reset times from ISO timestamps
   - Examples: "2h 30m", "1d 4h", "45m"
   - More accurate than previous HTML parsing method
@@ -172,7 +188,7 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
 ### Technical Details
 - New methods: `setupRequestInterception()`, `processApiResponse()`, `calculateResetTime()`
 - Enhanced `fetchUsageData()` with API-first approach
-- Updated data provider to handle weekly usage data
+- Updated data provider for improved usage metrics
 - Raw API response stored in `usageData.rawData` for future enhancements
 
 ### Performance
