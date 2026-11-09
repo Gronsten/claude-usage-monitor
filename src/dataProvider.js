@@ -220,6 +220,11 @@ class UsageDataProvider {
         // Always refresh tree view (will show session data even if web scrape failed)
         this.refresh();
 
+        // A verification prompt is already showing; stay quiet so polling doesn't spam toasts
+        if (webScrapeFailed && webScrapeError && webScrapeError.code === "VERIFICATION_PENDING") {
+          return;
+        }
+
         // Show appropriate message based on what succeeded
         if (webScrapeFailed) {
           vscode.window.showWarningMessage(

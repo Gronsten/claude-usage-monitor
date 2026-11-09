@@ -3,6 +3,8 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const vscode = require('vscode');
+// Claude.ai serves usage as a settings modal on a hash route
+const DEFAULT_USAGE_URL = 'https://claude.ai/new#settings/usage';
 
 class ClaudeUsageScraper {
     constructor() {
@@ -14,6 +16,7 @@ class ClaudeUsageScraper {
         this.isConnectedBrowser = false; // Track if we connected vs launched
         this.apiEndpoint = null; // Captured API endpoint URL
         this.apiHeaders = null; // Captured API request headers
+        this.verifying = null; // Promise while a human-verification flow is running
     }
 
     /**
@@ -105,10 +108,8 @@ class ClaudeUsageScraper {
                 this.page = await this.browser.newPage();
             }
 
-            // Set a realistic user agent
-            await this.page.setUserAgent(
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-            );
+            // Use the browser's real version (minus the "Headless" marker) as user agent
+            await this.applyUserAgent();
 
             // Set up request interception to capture API calls
             await this.setupRequestInterception();
@@ -219,10 +220,8 @@ class ClaudeUsageScraper {
 
             this.page = await this.browser.newPage();
 
-            // Set a realistic user agent to avoid detection
-            await this.page.setUserAgent(
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-            );
+            // Use the browser's real version (minus the "Headless" marker) as user agent
+            await this.applyUserAgent();
 
             // Set up request interception to capture API calls
             await this.setupRequestInterception();
@@ -240,16 +239,188 @@ class ClaudeUsageScraper {
     }
 
     /**
+     * Get the configured usage page URL.
+     * Claude.ai now serves usage as a settings modal on a hash route
+     * (https://claude.ai/new#settings/usage); the old /settings/usage path is gone.
+     * @returns {string}
+     */
+    getUsageUrl() {
+        const url = vscode.workspace.getConfiguration('claudeUsage').get('usageUrl');
+        return (url && url.trim()) || DEFAULT_USAGE_URL;
+    }
+
+    /**
+     * Navigate to the usage page.
+     * Hash-only navigations do not reload the page (so no fresh API calls would fire),
+     * so we go through about:blank first to force a full load every time.
+     */
+    async navigateToUsage() {
+        const target = this.getUsageUrl();
+        const maxAttempts = 3;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                await this.page.goto('about:blank');
+                // 'domcontentloaded' rather than 'networkidle2': claude.ai keeps
+                // long-lived connections open, so the network may never go idle.
+                // Callers wait for the usage content to render themselves.
+                await this.page.goto(target, {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 30000
+                });
+                return;
+            } catch (error) {
+                // net::ERR_ABORTED happens when claude.ai's client-side router
+                // redirects mid-navigation. If we ended up on claude.ai anyway,
+                // the page is usable; otherwise retry.
+                const aborted = /ERR_ABORTED/.test(error.message);
+                if (aborted && this.page.url().includes('claude.ai')) {
+                    console.log('Navigation aborted by redirect; page is on claude.ai, continuing');
+                    return;
+                }
+                if (aborted && attempt < maxAttempts) {
+                    console.log(`Navigation aborted (attempt ${attempt}/${maxAttempts}), retrying...`);
+                    await this.sleep(1000);
+                    continue;
+                }
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Set the page user agent to the browser's real one, minus the "Headless" marker.
+     * A hardcoded version goes stale and mismatches the browser's real fingerprint,
+     * which bot protection treats as suspicious.
+     */
+    async applyUserAgent() {
+        const ua = (await this.browser.userAgent()).replace('HeadlessChrome', 'Chrome');
+        await this.page.setUserAgent(ua);
+    }
+
+    /**
+     * Detect a Cloudflare "verify you are human" interstitial on the current page.
+     * Tolerant of pages stuck loading: gives up (returns false) after 5 seconds.
+     * @returns {Promise<boolean>}
+     */
+    async isChallengePage() {
+        try {
+            if (/__cf_chl/.test(this.page.url())) {
+                return true;
+            }
+            const check = this.page.evaluate(() => {
+                const text = (document.title + ' ' + (document.body ? document.body.innerText : '')).toLowerCase();
+                return text.includes('just a moment') ||
+                    text.includes('performing security verification') ||
+                    text.includes('verify you are human');
+            });
+            const timeout = new Promise(resolve => setTimeout(() => resolve(false), 5000));
+            return await Promise.race([check, timeout]);
+        } catch (error) {
+            return false; // Page navigating/closing: treat as not a challenge
+        }
+    }
+
+    /**
+     * Fully shut down the browser, even one we only connected to (CDP Browser.close).
+     */
+    async shutdownBrowser() {
+        try {
+            if (this.browser) {
+                await this.browser.close();
+            }
+        } catch (error) {
+            console.log('Browser shutdown error (ignored):', error.message);
+        }
+        this.browser = null;
+        this.page = null;
+        this.isInitialized = false;
+        this.isConnectedBrowser = false;
+        await this.sleep(1500); // let the debug port free up before relaunching
+    }
+
+    /**
+     * Hand a Cloudflare challenge to the user: relaunch the browser visibly, wait for
+     * them to complete it, then return to the user's headless preference.
+     * Concurrent callers get a VERIFICATION_PENDING error so polling does not
+     * spawn repeated windows/prompts.
+     */
+    async resolveChallenge() {
+        if (this.verifying) {
+            return this.verifying;
+        }
+        this.verifying = (async () => {
+            const wasHeadless = (await this.browser.version()).includes('Headless');
+            console.log('Cloudflare challenge detected; requesting human verification');
+            if (wasHeadless) {
+                await this.shutdownBrowser();
+                await this.initialize(true); // headed
+                await this.navigateToUsage().catch(() => { /* challenge page may abort; keep waiting */ });
+            }
+
+            vscode.window.showInformationMessage(
+                'Claude.ai needs a quick human verification. Please complete it in the browser window; the extension will continue automatically.'
+            );
+
+            const deadline = Date.now() + 5 * 60 * 1000;
+            while (await this.isChallengePage()) {
+                if (Date.now() > deadline) {
+                    throw new Error('Human verification timed out. Run "Fetch Claude Usage Now" to try again.');
+                }
+                await this.sleep(2000);
+            }
+            console.log('Human verification completed');
+
+            // Return to the user's headless preference now that clearance cookies are saved
+            const headlessPref = vscode.workspace.getConfiguration('claudeUsage').get('headless', true);
+            if (wasHeadless && headlessPref) {
+                await this.shutdownBrowser();
+                await this.initialize(false);
+            }
+            await this.navigateToUsage();
+            if (await this.isChallengePage()) {
+                throw new Error('Cloudflare is still challenging the headless browser. Set claudeUsage.headless to false.');
+            }
+        })();
+        try {
+            await this.verifying;
+        } finally {
+            this.verifying = null;
+        }
+    }
+
+    /**
+     * Navigate to the usage page, handling Cloudflare challenges.
+     */
+    async gotoUsagePage() {
+        if (this.verifying) {
+            const pending = new Error('Waiting for human verification in the browser window.');
+            pending.code = 'VERIFICATION_PENDING';
+            throw pending;
+        }
+
+        let navError = null;
+        try {
+            await this.navigateToUsage();
+        } catch (error) {
+            navError = error;
+        }
+
+        if (await this.isChallengePage()) {
+            await this.resolveChallenge();
+        } else if (navError) {
+            throw navError;
+        }
+    }
+
+    /**
      * Ensure user is logged into Claude.ai
      * Will wait for manual login if necessary
      */
     async ensureLoggedIn() {
         try {
-            // Navigate directly to settings/usage page
-            await this.page.goto('https://claude.ai/settings/usage', {
-                waitUntil: 'networkidle2',
-                timeout: 30000
-            });
+            // Navigate directly to the usage settings view
+            await this.gotoUsagePage();
 
             // Wait a moment for any redirects
             await this.sleep(2000);
@@ -279,8 +450,10 @@ class ClaudeUsageScraper {
                 }
             }
         } catch (error) {
-            if (error.message.includes('timeout')) {
-                throw new Error('Failed to load Claude.ai. Please check your internet connection.');
+            // Keep the real cause visible; the friendly message below hides it
+            console.error(`ensureLoggedIn failed at ${this.page && this.page.url()}:`, error.message);
+            if (/Navigation timeout/.test(error.message)) {
+                throw new Error('Timed out loading Claude.ai (network problem or a blocked security check).');
             }
             throw error;
         }
@@ -393,10 +566,7 @@ class ClaudeUsageScraper {
     async fetchUsageData() {
         try {
             // Navigate directly to the usage page to trigger API calls
-            await this.page.goto('https://claude.ai/settings/usage', {
-                waitUntil: 'networkidle2',
-                timeout: 30000
-            });
+            await this.gotoUsagePage();
 
             // Wait for page to load and potentially capture API endpoint
             await this.sleep(2000);
@@ -439,6 +609,12 @@ class ClaudeUsageScraper {
 
             // Fallback: Extract text content and parse usage data from HTML
             console.log('Using HTML scraping method');
+
+            // The usage modal renders client-side; give it a chance to appear
+            await this.page.waitForFunction(
+                () => /\d+%\s*used/i.test(document.body.innerText),
+                { timeout: 20000 }
+            ).catch(() => { /* handled below via null check */ });
             const data = await this.page.evaluate(() => {
                 const bodyText = document.body.innerText;
 
@@ -458,6 +634,7 @@ class ClaudeUsageScraper {
             });
 
             if (data.usagePercent === null) {
+                console.error('Usage scrape found no percentage. Page text sample:', data.bodyText);
                 throw new Error('Could not find usage percentage on settings page. The page layout may have changed.');
             }
 
