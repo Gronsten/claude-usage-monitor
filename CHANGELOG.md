@@ -11,7 +11,7 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
   Auto-refresh stays quiet while verification is pending.
 
 ### Changed
-- **Usage level is now pace-based (Low/Medium/High)** instead of absolute percent. It compares
+- **Usage level is now "Usage Pace" (Low/Medium/High)** instead of absolute percent. It compares
   usage with time elapsed in the 5-hour window and projects usage at reset: Low under 70%,
   Medium 70-100%, High over 100% (tooltip shows time until the limit). Status bar and tree
   icons follow it. Too early in the window (<15 min) shows Low; without a reset time it falls

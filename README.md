@@ -55,7 +55,7 @@ Simple configuration options for auto-refresh intervals and behavior customizati
 - **Status Bar Integration**: See both percentages at a glance (e.g., "Claude: 45% | Tokens: 26%")
 - **Tree View Panel**: Detailed usage information in a dedicated side panel
 - **Configurable Auto-Refresh**: Customizable refresh interval (1-60 minutes, default 5 minutes)
-- **Usage Level Indicator**: Pace-based Low/Medium/High - shows whether your usage is outpacing the time left in the 5-hour window (projected % at reset)
+- **Usage Pace Indicator**: Pace-based Low/Medium/High - shows whether your usage is outpacing the time left in the 5-hour window (projected % at reset)
   - Based on max of Claude.ai usage % or session token %
   - Idle (0-24%): Plenty of Claude time! | Light (25-49%): Quarter+ used
   - Moderate (50-79%): Much work, many thought | Heavy (80-100%): Running low!
@@ -120,7 +120,7 @@ There are several ways to fetch your usage data:
     - Usage percentage
     - Reset time
     - Last update timestamp
-    - Usage level (Low/Medium/High pace) with projected usage at reset
+    - Usage pace (Low/Medium/High) with projected usage at reset
 
 - **Tree View Panel**: Shows detailed information:
   - Usage percentage

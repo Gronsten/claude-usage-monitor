@@ -134,7 +134,7 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     if (activityStats) {
         const levelLabel = activityStats.level.charAt(0).toUpperCase() + activityStats.level.slice(1);
         tooltipLines.push('');
-        tooltipLines.push(`Usage Level: ${levelLabel} pace (${activityStats.maxPercent}% used)`);
+        tooltipLines.push(`Usage Pace: ${levelLabel}`);
         tooltipLines.push(`${activityStats.description}`);
     }
 
