@@ -12,6 +12,28 @@ let activityMonitor;
 let sessionTracker;
 let claudeDataLoader;
 let jsonlWatcher;
+let tokenMonitoringStarted = false;
+
+/**
+ * Whether conversation token tracking is enabled.
+ * DEPRECATED (v2.6.0): off by default. Claude Code now manages/compacts its own
+ * context, so the per-conversation token estimate is rarely useful. The code is kept
+ * so it can be re-enabled with the `claudeUsage.showTokenUsage` setting.
+ * @returns {boolean}
+ */
+function isTokenTrackingEnabled() {
+    return vscode.workspace.getConfiguration('claudeUsage').get('showTokenUsage', false);
+}
+
+/**
+ * Get session token data for display, or null when token tracking is disabled
+ */
+async function getSessionDataForDisplay() {
+    if (!isTokenTrackingEnabled() || !sessionTracker) {
+        return null;
+    }
+    return sessionTracker.getCurrentSession();
+}
 
 /**
  * Set up monitoring for Claude Code token usage via JSONL files
@@ -19,6 +41,10 @@ let jsonlWatcher;
  * @param {vscode.ExtensionContext} context
  */
 async function setupTokenMonitoring(context) {
+    if (tokenMonitoringStarted) {
+        return;
+    }
+    tokenMonitoringStarted = true;
     console.log('📊 Setting up Claude Code JSONL token monitoring...');
 
     // Create a diagnostic output channel for monitoring
@@ -88,6 +114,9 @@ async function setupTokenMonitoring(context) {
  * @param {boolean} silent - If true, don't log every update
  */
 async function updateTokensFromJsonl(diagnosticChannel, silent = false) {
+    if (!isTokenTrackingEnabled()) {
+        return;
+    }
     try {
         // Get current session usage (last hour)
         const usage = await claudeDataLoader.getCurrentSessionUsage();
@@ -150,19 +179,19 @@ async function activate(context) {
     // Initialize session tracker
     sessionTracker = new SessionTracker();
 
-    // Monitor for Claude Code token usage updates via JSONL files
-    await setupTokenMonitoring(context);
+    // Monitor for Claude Code token usage updates via JSONL files (deprecated, opt-in)
+    if (isTokenTrackingEnabled()) {
+        await setupTokenMonitoring(context);
+    }
 
     // Helper function to update status bar and tree view with all data
     async function updateStatusBarWithAllData() {
-        const sessionData = sessionTracker ? await sessionTracker.getCurrentSession() : null;
+        const sessionData = await getSessionDataForDisplay();
         const activityStats = activityMonitor ? activityMonitor.getStats(dataProvider.usageData, sessionData) : null;
         updateStatusBar(statusBarItem, dataProvider.usageData, activityStats, sessionData);
 
-        // Update tree view with session data
-        if (sessionData) {
-            dataProvider.updateSessionData(sessionData);
-        }
+        // Update tree view with session data (null clears it when tracking is disabled)
+        dataProvider.updateSessionData(sessionData);
     }
 
     // Register tree data provider
@@ -255,7 +284,13 @@ async function activate(context) {
 
     // Listen for configuration changes
     context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration(e => {
+        vscode.workspace.onDidChangeConfiguration(async e => {
+            if (e.affectsConfiguration('claudeUsage.showTokenUsage')) {
+                if (isTokenTrackingEnabled()) {
+                    await setupTokenMonitoring(context);
+                }
+                await updateStatusBarWithAllData();
+            }
             if (e.affectsConfiguration('claudeUsage.autoRefreshMinutes')) {
                 // Clear existing timer
                 if (autoRefreshTimer) {

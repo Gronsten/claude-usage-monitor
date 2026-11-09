@@ -3,21 +3,29 @@
  */
 
 /**
+ * Parse a relative reset time like "2h 30m", "45m" or "1d 4h" into minutes.
+ * @param {string} resetTime
+ * @returns {number|null} Minutes, or null if unparseable (e.g. "Unknown")
+ */
+function parseResetMinutes(resetTime) {
+    if (!resetTime) return null;
+    const days = resetTime.match(/(\d+)\s*d/);
+    const hours = resetTime.match(/(\d+)\s*h/);
+    const minutes = resetTime.match(/(\d+)\s*m/);
+    if (!days && !hours && !minutes) return null;
+    return (days ? parseInt(days[1]) * 1440 : 0) +
+        (hours ? parseInt(hours[1]) * 60 : 0) +
+        (minutes ? parseInt(minutes[1]) : 0);
+}
+
+/**
  * Calculate the actual clock time when reset will occur
  * @param {string} resetTime - Relative time like "2h 30m" or "45m"
  * @returns {string} Clock time in 24-hour format like "14:30"
  */
 function calculateResetClockTime(resetTime) {
     try {
-        // Parse the reset time string (e.g., "2h 30m", "45m", "1d 4h")
-        const days = resetTime.match(/(\d+)d/);
-        const hours = resetTime.match(/(\d+)h/);
-        const minutes = resetTime.match(/(\d+)m/);
-
-        let totalMinutes = 0;
-        if (days) totalMinutes += parseInt(days[1]) * 24 * 60;
-        if (hours) totalMinutes += parseInt(hours[1]) * 60;
-        if (minutes) totalMinutes += parseInt(minutes[1]);
+        const totalMinutes = parseResetMinutes(resetTime) || 0;
 
         // Calculate future time
         const now = new Date();
@@ -34,5 +42,6 @@ function calculateResetClockTime(resetTime) {
 }
 
 module.exports = {
+    parseResetMinutes,
     calculateResetClockTime
 };

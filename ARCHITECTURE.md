@@ -1,6 +1,6 @@
 # Claude Usage Monitor - Architecture Guide
 
-**Version:** 2.5.0
+**Version:** 2.7.0
 **Last Updated:** 2025-11-24
 **Purpose:** Technical architecture reference for Claude AI assistant sessions
 
@@ -1233,3 +1233,29 @@ ls ~/.claude/projects/*.jsonl
 **End of Architecture Document**
 
 *For user-facing documentation, see [README.md](README.md). For quick setup, see [QUICKSTART.md](QUICKSTART.md).*
+
+---
+
+## v2.6.0 Changes
+
+- **Usage URL**: scraper navigates to `claudeUsage.usageUrl` (default
+  `https://claude.ai/new#settings/usage`) via `gotoUsagePage()`, which loads `about:blank`
+  first so hash routes trigger a real page load.
+- **Token tracking deprecated**: gated by `claudeUsage.showTokenUsage` (default `false`).
+  `extension.js` skips JSONL monitoring and passes `null` session data to the status bar,
+  tree view and activity monitor when disabled. Toggling the setting takes effect live.
+
+## v2.7.0 Changes
+
+- **Cloudflare challenge handling** (`src/scraper.js`): `gotoUsagePage()` wraps
+  `navigateToUsage()` (raw navigation, `domcontentloaded`, retry on `ERR_ABORTED`) and calls
+  `isChallengePage()` afterwards. On a challenge, `resolveChallenge()` shuts the browser down
+  (`shutdownBrowser()`), relaunches it headed, notifies the user, polls until the challenge
+  clears (5 minute limit), then restores headless mode per `claudeUsage.headless`.
+- **Polling guard**: while `scraper.verifying` is set, `gotoUsagePage()` throws an error with
+  `code = 'VERIFICATION_PENDING'`; `dataProvider.js` suppresses the warning toast for it.
+- **User agent**: `applyUserAgent()` derives it from the real browser version.
+- **Pace-based usage level** (`src/activityMonitor.js`): `calculatePace()` projects usage at reset from
+  `usagePercent` and elapsed time (5-hour window minus parsed `resetTime`, see `parseResetMinutes()` in
+  `utils.js`). Levels: `low` (<70% projected), `medium` (70-100%), `high` (>100%). Consumed by
+  `statusBar.js` (icon/tooltip) and `dataProvider.js` (tree icon).

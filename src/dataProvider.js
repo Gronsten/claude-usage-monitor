@@ -4,6 +4,7 @@ const vscode = require("vscode");
 const { ClaudeUsageScraper } = require("./scraper");
 const { UsageHistory } = require("./usageHistory");
 const { calculateResetClockTime } = require("./utils");
+const { ActivityMonitor } = require("./activityMonitor");
 
 class UsageDataProvider {
   constructor() {
@@ -81,16 +82,9 @@ class UsageDataProvider {
       )
     ];
 
-    // Determine usage level for icon (matches activityMonitor thresholds)
-    let usageLevel = "normal";
-    if (this.usageData.usagePercent >= 80) {
-      usageLevel = "critical";  // Heavy: 80-100%
-    } else if (this.usageData.usagePercent >= 50) {
-      usageLevel = "warning";   // Moderate: 50-79%
-    } else if (this.usageData.usagePercent >= 25) {
-      usageLevel = "info";      // Light: 25-49%
-    }
-    // else: normal (idle: 0-24%)
+    // Icon follows the pace-based level (is usage outpacing the time left in the window?)
+    const paceLevel = new ActivityMonitor().getActivityLevel(this.usageData);
+    const usageLevel = { high: "critical", medium: "warning", low: "normal" }[paceLevel];
 
     items.push(
       new UsageTreeItem(
@@ -219,6 +213,11 @@ class UsageDataProvider {
 
         // Always refresh tree view (will show session data even if web scrape failed)
         this.refresh();
+
+        // A verification prompt is already showing; stay quiet so polling doesn't spam toasts
+        if (webScrapeFailed && webScrapeError && webScrapeError.code === "VERIFICATION_PENDING") {
+          return;
+        }
 
         // Show appropriate message based on what succeeded
         if (webScrapeFailed) {

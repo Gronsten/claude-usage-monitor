@@ -2,6 +2,46 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.7.0] - 2026-11-09
+
+### Added
+- **Cloudflare challenge handling**: when claude.ai shows a "verify you are human" check,
+  the extension now detects it, relaunches the background browser visibly, notifies you,
+  waits (up to 5 minutes) for you to complete it, then returns to headless mode.
+  Auto-refresh stays quiet while verification is pending.
+
+### Changed
+- **Usage level is now "Usage Pace" (Low/Medium/High)** instead of absolute percent. It compares
+  usage with time elapsed in the 5-hour window and projects usage at reset: Low under 70%,
+  Medium 70-100%, High over 100% (tooltip shows time until the limit). Status bar and tree
+  icons follow it. Too early in the window (<15 min) shows Low; without a reset time it falls
+  back to absolute thresholds. Token usage no longer factors in.
+
+### Fixed
+- Navigation no longer hangs on `networkidle2` (claude.ai never goes idle); it waits for
+  `domcontentloaded` and retries on `net::ERR_ABORTED`.
+- User agent now matches the real browser version instead of a hardcoded Chrome 121.
+- Misleading "check your internet connection" error replaced with the actual cause.
+- Usage-modal render wait raised from 10 to 20 seconds.
+
+## [2.6.0] - 2026-11-09
+
+### Fixed
+- **Usage scrape failing ("Web scraping failed")**: Claude.ai moved the usage view from
+  `/settings/usage` to a settings modal at `https://claude.ai/new#settings/usage`.
+  The scraper now uses the new URL and forces a full page load on each fetch
+  (hash-only navigation does not reload, so no usage API call fired).
+- HTML fallback now waits up to 10 seconds for the modal to render and logs a page-text
+  sample when no percentage is found.
+
+### Added
+- `claudeUsage.usageUrl` setting: override the scraped URL if Claude.ai moves it again.
+
+### Deprecated
+- **Conversation token tracking** is now off by default (`claudeUsage.showTokenUsage`: `false`).
+  Claude Code manages and compacts its own context. The code is retained; set the setting
+  to `true` to re-enable (no reload needed).
+
 ## [2.5.2] - 2025-11-29
 
 ### Changed

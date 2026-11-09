@@ -1,12 +1,15 @@
 /**
- * Calculates activity level based on Claude.ai usage and session token usage
- * to show how much "Claude time" remains
+ * Calculates a pace-based usage level: is usage outpacing the time left in the
+ * current 5-hour Claude.ai window?
  */
-class ActivityMonitor {
-    constructor() {
-        // No state needed - we calculate on-demand from usage data
-    }
+const { parseResetMinutes } = require('./utils');
 
+const WINDOW_MINUTES = 5 * 60;   // Claude.ai usage window length
+const MIN_ELAPSED_MINUTES = 15;  // Before this, a projection is too noisy to trust
+const HIGH_PROJECTION = 100;     // Projected % at reset: over this you hit the limit before reset
+const MEDIUM_PROJECTION = 70;    // Projected % at reset: on track to use most of it
+
+class ActivityMonitor {
     /**
      * Start monitoring - kept for backwards compatibility but does nothing now
      * @param {vscode.ExtensionContext} context
@@ -16,77 +19,99 @@ class ActivityMonitor {
     }
 
     /**
-     * Get current activity level based on Claude usage
-     * @param {Object} usageData - Claude.ai usage data
-     * @param {Object} sessionData - Session token data
-     * @returns {'heavy'|'moderate'|'light'|'idle'}
+     * Compute pace statistics from the scraped usage and reset time.
+     * Session token data is intentionally ignored (token tracking is deprecated).
+     * @param {Object} usageData - Claude.ai usage data ({usagePercent, resetTime})
+     * @returns {{level: 'high'|'medium'|'low', pace: number|null, projectedPercent: number|null,
+     *            minutesToLimit: number|null, tooEarly: boolean, usagePercent: number}}
      */
-    getActivityLevel(usageData = null, sessionData = null) {
-        // Calculate percentages
-        const claudePercent = usageData ? usageData.usagePercent : 0;
+    calculatePace(usageData) {
+        const usagePercent = usageData ? usageData.usagePercent : 0;
+        const result = {
+            level: 'low', pace: null, projectedPercent: null,
+            minutesToLimit: null, tooEarly: false, usagePercent
+        };
 
-        let tokenPercent = 0;
-        if (sessionData && sessionData.tokenUsage) {
-            tokenPercent = Math.round((sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100);
+        if (usagePercent >= 100) {
+            result.level = 'high';
+            return result;
         }
 
-        // Use the HIGHER of the two percentages (most urgent)
-        const maxPercent = Math.max(claudePercent, tokenPercent);
-
-        // Determine activity level based on max usage
-        if (maxPercent >= 80) {
-            return 'heavy';      // 80-100% - Getting critical!
-        } else if (maxPercent >= 50) {
-            return 'moderate';   // 50-79% - Halfway there
-        } else if (maxPercent >= 25) {
-            return 'light';      // 25-49% - Quarter used
-        } else {
-            return 'idle';       // 0-24% - Plenty left
+        const remaining = usageData ? parseResetMinutes(usageData.resetTime) : null;
+        if (remaining === null || remaining > WINDOW_MINUTES) {
+            // No usable reset time: fall back to absolute thresholds
+            result.level = usagePercent >= 80 ? 'high' : usagePercent >= 50 ? 'medium' : 'low';
+            return result;
         }
+
+        const elapsed = WINDOW_MINUTES - remaining;
+        if (elapsed < MIN_ELAPSED_MINUTES) {
+            result.tooEarly = true;
+            return result;
+        }
+
+        const rate = usagePercent / elapsed; // % per minute
+        result.pace = usagePercent / ((elapsed / WINDOW_MINUTES) * 100);
+        result.projectedPercent = Math.round(rate * WINDOW_MINUTES);
+
+        if (result.projectedPercent > HIGH_PROJECTION) {
+            result.level = 'high';
+            result.minutesToLimit = rate > 0 ? Math.round((100 - usagePercent) / rate) : null;
+        } else if (result.projectedPercent >= MEDIUM_PROJECTION) {
+            result.level = 'medium';
+        }
+        return result;
+    }
+
+    /**
+     * Get current pace-based level
+     * @param {Object} usageData - Claude.ai usage data
+     * @returns {'high'|'medium'|'low'}
+     */
+    getActivityLevel(usageData = null) {
+        return this.calculatePace(usageData).level;
     }
 
     /**
      * Get activity statistics for display
      * @param {Object} usageData - Claude.ai usage data
-     * @param {Object} sessionData - Session token data
+     * @param {Object} sessionData - Ignored (kept for call-site compatibility)
      * @returns {object}
      */
     getStats(usageData = null, sessionData = null) {
-        const claudePercent = usageData ? usageData.usagePercent : 0;
-
-        let tokenPercent = 0;
-        if (sessionData && sessionData.tokenUsage) {
-            tokenPercent = Math.round((sessionData.tokenUsage.current / sessionData.tokenUsage.limit) * 100);
-        }
-
-        const maxPercent = Math.max(claudePercent, tokenPercent);
-        const level = this.getActivityLevel(usageData, sessionData);
-
+        const pace = this.calculatePace(usageData);
         return {
-            level: level,
-            claudePercent: claudePercent,
-            tokenPercent: tokenPercent,
-            maxPercent: maxPercent,
-            description: this.getActivityDescription(level, claudePercent, tokenPercent)
+            ...pace,
+            maxPercent: pace.usagePercent,
+            description: this.getActivityDescription(pace)
         };
     }
 
     /**
-     * Get human-readable description of activity level
-     * @param {string} level
-     * @param {number} claudePercent
-     * @param {number} tokenPercent
+     * Human-readable explanation of the level
+     * @param {Object} pace - Result of calculatePace
      * @returns {string}
      */
-    getActivityDescription(level, claudePercent, tokenPercent) {
-        const descriptions = {
-            'heavy': 'Running low!',
-            'moderate': 'Much work, many thought',
-            'light': 'Quarter+ used',
-            'idle': 'Plenty of Claude time!'
-        };
-
-        return descriptions[level] || 'Unknown';
+    getActivityDescription(pace) {
+        if (pace.tooEarly) {
+            return 'Too early in the window to project pace';
+        }
+        if (pace.projectedPercent === null) {
+            return pace.level === 'high' ? 'Limit reached or nearly so' : 'Pace unavailable (no reset time)';
+        }
+        if (pace.level === 'high') {
+            let when = '';
+            if (pace.minutesToLimit !== null) {
+                const h = Math.floor(pace.minutesToLimit / 60);
+                const m = pace.minutesToLimit % 60;
+                when = `, limit in ~${h > 0 ? h + 'h ' : ''}${m}m at this rate`;
+            }
+            return `Outpacing the window: projected ${pace.projectedPercent}% by reset${when}`;
+        }
+        if (pace.level === 'medium') {
+            return `On track to use most of it: projected ${pace.projectedPercent}% by reset`;
+        }
+        return `Room to spare: projected ${pace.projectedPercent}% by reset`;
     }
 }
 
