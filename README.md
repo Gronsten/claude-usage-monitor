@@ -2,13 +2,13 @@
 
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/Gronsten?style=social)](https://github.com/sponsors/Gronsten)
 
-Monitor your Claude usage from both Claude.ai web client and Claude Code sessions directly in VS Code. This extension tracks web usage via direct API access (with intelligent fallback to web scraping) and monitors Claude Code token consumption through intelligent session tracking that automatically detects usage from your active conversation, even when multiple conversations are open.
+Monitor your Claude.ai usage directly in VS Code, and see at a glance whether you are outpacing the current 5-hour window. Usage is read from Claude.ai via direct API access (with automatic fallback to web scraping) using a background browser session that you sign in to once.
 
 > [!TIP]
-> **NEW in v2.3.8:** Professional screenshots added to marketplace listing showcasing status bar integration, detailed tooltips, tree view panel, and configuration settings!
+> **NEW in v2.7.0:** A **Usage Pace** indicator (Low / Medium / High) projects where your usage will land when the window resets, and the extension now handles Claude.ai's Cloudflare "verify you are human" check by prompting you instead of failing silently.
 
 > [!NOTE]
-> **Dual Monitoring:** This extension tracks BOTH Claude.ai web usage (5-hour limit) AND your Claude Code session token consumption in real-time with intelligent session detection.
+> **Claude Code token tracking is deprecated** and off by default (`claudeUsage.showTokenUsage`), because Claude Code manages and compacts its own context. The code is retained; set the setting to `true` to re-enable it.
 
 ## Demo
 
@@ -26,12 +26,12 @@ Dual usage display showing both Claude.ai web usage and Claude Code token consum
 ### Detailed Tooltip
 ![Hover Tooltip](screenshots/tooltip.png)
 
-Hover over the status bar for detailed usage information including reset times and usage levels.
+Hover over the status bar for detailed usage information including reset times and your usage pace.
 
 ### Tree View Panel
 ![Tree View Panel](screenshots/tree-view.png)
 
-Dedicated activity bar panel with comprehensive usage metrics including 5-hour usage and session token tracking.
+Dedicated activity bar panel with 5-hour usage, reset countdown and a usage trend sparkline.
 
 ### Configuration Settings
 ![Settings](screenshots/settings.png)
@@ -45,24 +45,21 @@ Simple configuration options for auto-refresh intervals and behavior customizati
   - More reliable (JSON parsing vs HTML regex)
   - Intelligent fallback to HTML scraping if API fails
   - No breaking changes when Claude.ai updates their UI
-- **Dual Usage Monitoring**: Track both Claude.ai usage AND development session token usage
-  - Claude.ai 5-hour usage percentage with reset time
-  - Current session token count (from `session-data.json`)
-  - Automatically updated when developing with Claude Code (see [SESSION_TRACKING.md](SESSION_TRACKING.md))
-- **Enhanced Usage Metrics**: Real-time tracking with visual indicators
-  - 5-hour usage limit with countdown timer
-  - Color-coded indicators based on usage levels
-- **Status Bar Integration**: See both percentages at a glance (e.g., "Claude: 45% | Tokens: 26%")
+- **5-Hour Usage Monitoring**: Claude.ai usage percentage with reset countdown and clock time
+- **Usage Trend**: Sparkline of recent usage in the tree view
+- **Status Bar Integration**: Usage at a glance (e.g., "Claude: 45%"), colored by usage pace
 - **Tree View Panel**: Detailed usage information in a dedicated side panel
 - **Configurable Auto-Refresh**: Customizable refresh interval (1-60 minutes, default 5 minutes)
-- **Usage Pace Indicator**: Pace-based Low/Medium/High - shows whether your usage is outpacing the time left in the 5-hour window (projected % at reset)
-  - Based on max of Claude.ai usage % or session token %
-  - Idle (0-24%): Plenty of Claude time! | Light (25-49%): Quarter+ used
-  - Moderate (50-79%): Much work, many thought | Heavy (80-100%): Running low!
+- **Usage Pace Indicator**: Shows whether your usage is outpacing the time left in the 5-hour window
+  - Projects usage at reset from how much of the window has elapsed
+  - **Low** (projected under 70%): room to spare
+  - **Medium** (70-100%): on track to use most of it
+  - **High** (over 100%): you will likely hit the limit before reset; the tooltip shows roughly how long you have
+  - Shows "too early to project" during the first 15 minutes of a window
 - **Auto-Start**: Fetches usage data automatically when VS Code starts
-- **Silent Mode**: Runs browser in headless (hidden) mode, shows window only if login needed
+- **Silent Mode**: Runs browser in headless (hidden) mode, shows window only if login or verification is needed
+- **Cloudflare Verification Handling**: If Claude.ai shows a "verify you are human" check, the extension opens the browser, notifies you, waits for you to complete it, then returns to headless mode
 - **Session Persistence**: Log in once, stay authenticated across VS Code sessions
-- **Visual Indicators**: Color-coded warnings when approaching usage limits
 
 ## Installation
 
@@ -93,9 +90,8 @@ The extension will **automatically fetch usage data** when VS Code starts. If yo
 **That's it!** The extension will now:
 - Fetch usage automatically on startup
 - Refresh at your configured interval (default: every 5 minutes, range: 1-60 minutes)
-- Display both Claude.ai and session token usage
-- Show your usage level
-- Run completely hidden unless login is required
+- Display your Claude.ai usage and usage pace
+- Run completely hidden unless login or verification is required
 
 ## Usage
 
@@ -112,10 +108,10 @@ There are several ways to fetch your usage data:
 
 ### View Usage Information
 
-- **Status Bar**: Shows current usage percentage with a color-coded icon
-  - Green check: < 80% usage
-  - Orange warning: 80-89% usage
-  - Red error: ≥ 90% usage
+- **Status Bar**: Shows current usage percentage with an icon colored by usage pace
+  - Green check: Low pace
+  - Orange warning: Medium pace
+  - Red error: High pace
   - **Hover tooltip** shows:
     - Usage percentage
     - Reset time
@@ -139,7 +135,17 @@ Open VS Code Settings and search for "Claude Usage" to configure:
 ### `claudeUsage.headless`
 - **Type**: Boolean
 - **Default**: `true` ✅
-- **Description**: Run browser in headless (hidden) mode. Browser will show automatically if login is needed.
+- **Description**: Run browser in headless (hidden) mode. Browser will show automatically if login or human verification is needed.
+
+### `claudeUsage.usageUrl`
+- **Type**: String
+- **Default**: `https://claude.ai/new#settings/usage`
+- **Description**: URL of the Claude.ai usage page that is scraped. Change this if Claude.ai moves the usage view again.
+
+### `claudeUsage.showTokenUsage`
+- **Type**: Boolean
+- **Default**: `false`
+- **Description**: Deprecated. Show Claude Code conversation token usage in the status bar and tree view.
 
 ### `claudeUsage.autoRefreshMinutes`
 - **Type**: Number
@@ -178,7 +184,6 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 The extension automatically refreshes usage data at configurable intervals:
 - Default: Every 5 minutes
 - Customizable: 1-60 minute range
-- Updates both Claude.ai usage and session token data
 - Runs silently in the background
 
 ### Headless Browser Operation
@@ -187,9 +192,9 @@ The extension automatically refreshes usage data at configurable intervals:
 3. Browser launches in **visible mode** so you can log in manually
 4. Your session is saved to `~/.claude-browser-session/` for future use
 5. Subsequent fetches launch browser in **headless mode** (completely hidden)
-6. The extension navigates directly to `https://claude.ai/settings/usage`
-7. Usage data is extracted from the page and displayed in VS Code
-8. Browser closes automatically to save resources
+6. The extension loads the usage view (`https://claude.ai/new#settings/usage`)
+7. Usage data is read via Claude.ai's API (or extracted from the page) and displayed in VS Code
+8. If Claude.ai shows a Cloudflare verification, the browser is shown so you can complete it, then hidden again
 
 ### Session Persistence
 - Session cookies are stored locally by Chromium
@@ -215,6 +220,15 @@ The extension automatically refreshes usage data at configurable intervals:
 - Check that no antivirus is blocking Puppeteer
 - Try running VS Code as administrator (Windows)
 
+### Human verification prompt
+
+**Problem**: A notification says "Claude.ai needs a quick human verification"
+
+**Solutions**:
+- Complete the check in the browser window that opened; the extension continues automatically
+- It can reappear after a network change or when clearance cookies expire
+- If headless mode keeps getting challenged, set `claudeUsage.headless` to `false`
+
 ### Login timeout
 
 **Problem**: "Login timeout" error after 5 minutes
@@ -239,7 +253,7 @@ The extension automatically refreshes usage data at configurable intervals:
 
 **Solutions**:
 - Claude.ai may have changed their settings page layout
-- Check if you can see your usage at [claude.ai/settings](https://claude.ai/settings)
+- Check that the usage view still loads at `https://claude.ai/new#settings/usage` (override with `claudeUsage.usageUrl` if it moved)
 - Report an issue for the extension to be updated
 
 ### Performance issues
@@ -287,7 +301,7 @@ npm run package
 - `src/` - Source modules (bundled into dist/)
   - `dataProvider.js` - Tree view data provider
   - `statusBar.js` - Status bar integration
-  - `activityMonitor.js` - Activity tracking and sparklines
+  - `activityMonitor.js` - Usage pace calculation (Low/Medium/High)
   - `sessionTracker.js` - Claude Code session management
   - `claudeDataLoader.js` - JSONL file parser
   - `scraper.js` - Claude.ai web scraper
