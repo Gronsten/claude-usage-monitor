@@ -1,6 +1,6 @@
 # Claude Usage Monitor - Architecture Guide
 
-**Version:** 2.7.0
+**Version:** 2.7.1
 **Last Updated:** 2025-11-24
 **Purpose:** Technical architecture reference for Claude AI assistant sessions
 
@@ -1259,3 +1259,12 @@ ls ~/.claude/projects/*.jsonl
   `usagePercent` and elapsed time (5-hour window minus parsed `resetTime`, see `parseResetMinutes()` in
   `utils.js`). Levels: `low` (<70% projected), `medium` (70-100%), `high` (>100%). Consumed by
   `statusBar.js` (icon/tooltip) and `dataProvider.js` (tree icon).
+
+## v2.7.1 Changes
+
+- **Stale browser/tab recovery** (`src/scraper.js`): `ensureReady()` runs at the start of
+  `gotoUsagePage()` and verifies the browser (`browser.version()`) and tab (`page.isClosed()` plus a
+  trivial evaluate). A dead browser triggers `initialize()`; a dead tab is replaced with a new one.
+  `fetchUsageData(isRetry)` also retries once, after `resetBrowserState()`, when
+  `isStaleBrowserError()` matches (detached Frame, Target closed, Session closed, ...).
+  `tryConnectToExisting()` reuses a claude.ai tab or opens its own instead of taking `pages[0]`.
