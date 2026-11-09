@@ -211,6 +211,14 @@ The extension automatically refreshes usage data at configurable intervals:
 
 ## Troubleshooting
 
+### "Attempted to use detached Frame" warning
+
+**Problem**: After closing the browser window, refreshes fail with `Web scrape failed: Attempted to use detached Frame`
+
+**Solutions**:
+- Update to v2.7.1 or later; the extension now reopens the browser tab (or relaunches the browser) automatically
+- On older versions, reload the VS Code window (`Developer: Reload Window`) to reset the scraper
+
 ### Browser won't launch
 
 **Problem**: Error message "Failed to launch browser"

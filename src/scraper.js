@@ -87,24 +87,11 @@ class ClaudeUsageScraper {
                 defaultViewport: null // Use the browser's viewport
             });
 
-            // Get existing pages or create a new one
+            // Reuse a tab that is already on Claude (ours from an earlier run);
+            // otherwise open a dedicated tab. Never adopt an arbitrary tab.
             const pages = await this.browser.pages();
-            if (pages.length > 0) {
-                // Try to find a page that's already on Claude
-                for (const page of pages) {
-                    const url = page.url();
-                    if (url.includes('claude.ai')) {
-                        this.page = page;
-                        break;
-                    }
-                }
-
-                // If no Claude page found, use the first page
-                if (!this.page) {
-                    this.page = pages[0];
-                }
-            } else {
-                // Create a new page if none exist
+            this.page = pages.find(page => page.url().includes('claude.ai')) || null;
+            if (!this.page) {
                 this.page = await this.browser.newPage();
             }
 
@@ -247,6 +234,74 @@ class ClaudeUsageScraper {
     getUsageUrl() {
         const url = vscode.workspace.getConfiguration('claudeUsage').get('usageUrl');
         return (url && url.trim()) || DEFAULT_USAGE_URL;
+    }
+
+    /**
+     * Whether an error means the browser/tab we hold was closed or detached
+     * (e.g. the user closed the window). These are recoverable by reconnecting.
+     * @param {Error} error
+     * @returns {boolean}
+     */
+    isStaleBrowserError(error) {
+        return /detached Frame|Target closed|Session closed|Connection closed|Browser has disconnected|Execution context was destroyed/i
+            .test((error && error.message) || '');
+    }
+
+    /**
+     * Forget the browser/tab references so the next ensureReady() rebuilds them.
+     * Does not close anything.
+     */
+    resetBrowserState() {
+        // Drop our CDP connection (does not close the browser) so it is not leaked
+        if (this.browser) {
+            try { this.browser.disconnect(); } catch (error) { /* already gone */ }
+        }
+        this.browser = null;
+        this.page = null;
+        this.isInitialized = false;
+        this.isConnectedBrowser = false;
+    }
+
+    /**
+     * Make sure we hold a live browser AND a live tab before navigating.
+     * initialize() only runs when isInitialized is false, so a browser or tab the
+     * user closed would otherwise stay referenced and fail with
+     * "Attempted to use detached Frame" on every refresh.
+     */
+    async ensureReady() {
+        let browserAlive = false;
+        if (this.browser) {
+            try {
+                await this.browser.version();
+                browserAlive = true;
+            } catch (error) {
+                browserAlive = false;
+            }
+        }
+
+        if (!browserAlive) {
+            console.log('Browser is gone; reconnecting/relaunching');
+            this.resetBrowserState();
+            await this.initialize();
+            return;
+        }
+
+        let pageAlive = false;
+        if (this.page && !this.page.isClosed()) {
+            try {
+                await this.page.evaluate(() => 1);
+                pageAlive = true;
+            } catch (error) {
+                pageAlive = false;
+            }
+        }
+
+        if (!pageAlive) {
+            console.log('Tab is gone; opening a new one');
+            this.page = await this.browser.newPage();
+            await this.applyUserAgent();
+            await this.setupRequestInterception();
+        }
     }
 
     /**
@@ -398,6 +453,8 @@ class ClaudeUsageScraper {
             pending.code = 'VERIFICATION_PENDING';
             throw pending;
         }
+
+        await this.ensureReady();
 
         let navError = null;
         try {
@@ -563,7 +620,7 @@ class ClaudeUsageScraper {
      * Fetch usage data from Claude.ai settings/usage page
      * @returns {Promise<{usagePercent: number, resetTime: string, timestamp: Date}>}
      */
-    async fetchUsageData() {
+    async fetchUsageData(isRetry = false) {
         try {
             // Navigate directly to the usage page to trigger API calls
             await this.gotoUsagePage();
@@ -645,6 +702,12 @@ class ClaudeUsageScraper {
             };
 
         } catch (error) {
+            // The user closed the browser/tab mid-session: rebuild and retry once
+            if (!isRetry && this.isStaleBrowserError(error)) {
+                console.log('Stale browser/tab detected, recovering:', error.message);
+                this.resetBrowserState();
+                return this.fetchUsageData(true);
+            }
             if (error.message.includes('timeout')) {
                 throw new Error('Usage page took too long to load. Please try again.');
             }

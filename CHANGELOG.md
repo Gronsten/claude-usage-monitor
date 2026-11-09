@@ -2,6 +2,21 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.7.1] - 2026-11-09
+
+### Fixed
+- **"Web scrape failed: Attempted to use detached Frame" (#24)**: closing the background browser
+  window or tab left the extension holding a dead page, so every refresh failed until VS Code was
+  restarted. The scraper now verifies the browser and tab are alive before each fetch, reopens a
+  tab or relaunches the browser if not, and retries once on stale-browser errors.
+- The scraper no longer adopts an arbitrary existing tab (`pages[0]`) in a browser it connects to;
+  it reuses a claude.ai tab or opens its own.
+
+### Documentation
+- README troubleshooting entry for the detached-frame warning.
+- Publishing docs: `VSCE_PAT` environment-variable authentication, publishing the released
+  `.vsix`, and the npm-mirror caveat for installing vsce.
+
 ## [2.7.0] - 2026-11-09
 
 ### Added

@@ -42,8 +42,36 @@ claude-usage/
 4. Run `npm run package` (builds with esbuild + packages)
 5. **Move previous .vsix file(s) to archive/**
 6. Test the new .vsix installation
-7. Commit and push changes
-8. Create git tag if publishing
+7. Update README.md/ARCHITECTURE.md for any user-visible change (docs ship with every release;
+   the marketplace listing README comes from the packaged `.vsix`)
+8. Commit (signed) and push on a feature branch, open a PR, wait for approval, squash-merge
+9. Create the GitHub release from the merged `main`, attaching the `.vsix`:
+   `gh release create vX.Y.Z claude-session-usage-X.Y.Z.vsix --title "..." --notes-file notes.md`
+10. Publish that same `.vsix` to the marketplace (see Publishing below)
+
+### Publishing
+
+Publish the exact `.vsix` attached to the GitHub release so both channels match:
+
+```bash
+vsce publish --packagePath claude-session-usage-X.Y.Z.vsix
+```
+
+- **Auth:** `vsce` reads the marketplace Personal Access Token from the `VSCE_PAT` environment
+  variable (user-level on Windows). `vsce login` is not needed and stores the token in clear text
+  in `~/.vsce`; prefer the env variable. Verify with `vsce verify-pat Gronsten`.
+- **Creating/rotating the PAT:** https://dev.azure.com > User settings > Personal access tokens,
+  Organization "All accessible organizations", scope **Marketplace > Manage**. Rotate with
+  `[Environment]::SetEnvironmentVariable('VSCE_PAT','<token>','User')` and restart terminals.
+- **Expired PAT symptom:** `Access Denied: The Personal Access Token used has expired`.
+- **Versions are immutable:** a published version cannot be overwritten. README/docs changes only
+  reach the marketplace listing with the next version.
+- **vsce version:** installed globally via `npm i -g @vscode/vsce`. The corporate npm mirror
+  (cfa.jfrog.io) does not carry `yauzl@3.4.0`, so vsce 4.x fails to install there; 3.9.2 is the
+  newest that resolves. Do not bypass the mirror without checking company policy.
+- **Open VSX** is not currently published to (needs an `ovsx` token).
+- **Slow uploads:** `gh release create` with the `.vsix` can take several minutes and can leave
+  an empty draft if interrupted; run it in the background and verify with `gh release view`.
 
 ---
 
