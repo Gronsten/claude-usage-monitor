@@ -1255,3 +1255,7 @@ ls ~/.claude/projects/*.jsonl
 - **Polling guard**: while `scraper.verifying` is set, `gotoUsagePage()` throws an error with
   `code = 'VERIFICATION_PENDING'`; `dataProvider.js` suppresses the warning toast for it.
 - **User agent**: `applyUserAgent()` derives it from the real browser version.
+- **Pace-based usage level** (`src/activityMonitor.js`): `calculatePace()` projects usage at reset from
+  `usagePercent` and elapsed time (5-hour window minus parsed `resetTime`, see `parseResetMinutes()` in
+  `utils.js`). Levels: `low` (<70% projected), `medium` (70-100%), `high` (>100%). Consumed by
+  `statusBar.js` (icon/tooltip) and `dataProvider.js` (tree icon).

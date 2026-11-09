@@ -51,19 +51,15 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     if (activityStats) {
         // Use activity level which is based on max(claudePercent, tokenPercent)
         switch (activityStats.level) {
-            case 'heavy':
+            case 'high':
                 icon = '$(error)';
                 color = new vscode.ThemeColor('errorForeground');
                 break;
-            case 'moderate':
+            case 'medium':
                 icon = '$(warning)';
                 color = new vscode.ThemeColor('editorWarning.foreground');
                 break;
-            case 'light':
-                icon = '$(info)';
-                color = new vscode.ThemeColor('editorInfo.foreground');
-                break;
-            case 'idle':
+            case 'low':
             default:
                 icon = '$(check)';
                 color = new vscode.ThemeColor('testing.iconPassed');
@@ -138,7 +134,7 @@ function updateStatusBar(item, usageData, activityStats = null, sessionData = nu
     if (activityStats) {
         const levelLabel = activityStats.level.charAt(0).toUpperCase() + activityStats.level.slice(1);
         tooltipLines.push('');
-        tooltipLines.push(`Usage Level: ${levelLabel} (${activityStats.maxPercent}%)`);
+        tooltipLines.push(`Usage Level: ${levelLabel} pace (${activityStats.maxPercent}% used)`);
         tooltipLines.push(`${activityStats.description}`);
     }
 
