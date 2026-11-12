@@ -73,6 +73,49 @@ vsce publish --packagePath claude-session-usage-X.Y.Z.vsix
 - **Slow uploads:** `gh release create` with the `.vsix` can take several minutes and can leave
   an empty draft if interrupted; run it in the background and verify with `gh release view`.
 
+### Documentation images
+
+The README images live in `screenshots/` (PNG) and `assets/demo.gif`. Both are bundled in the
+`.vsix`, so keep them small. Retake them when the UI they show changes (see the docs-with-every-release
+step above); a refresh only reaches the marketplace listing with the next version.
+
+**Capture with Windows 11 built-in tools** (no install needed):
+
+- **Screenshots:** Snipping Tool (`Win+Shift+S`) saves PNGs. A hover tooltip disappears when a key is
+  pressed, so use the Snipping Tool *app* with its 3-second delay and hover the item instead of the hotkey.
+- **Demo GIF:** the Snipping Tool screen recorder (`Win+Shift+R`) records the screen and exports a GIF.
+- Use the dark theme, crop tightly, and avoid anything personal (account names, other extensions).
+  Run the real extension, ideally the published build, with live data.
+
+| File | Show |
+|------|------|
+| `screenshots/status-bar.png` | Status bar item, for example `Claude: 45%`, with the pace-colored icon |
+| `screenshots/tooltip.png` | Hover tooltip: usage %, reset time, **Usage Pace**, projection line, version footer |
+| `screenshots/tree-view.png` | Claude Usage activity-bar panel: sparkline, usage, reset countdown (take it when usage is above 0%) |
+| `screenshots/settings.png` | Settings filtered to `Claude Usage`, showing the current options |
+| `assets/demo.gif` | Status bar refresh, tooltip hover, then the Claude Usage panel; aim for 15-25 s |
+
+**Shrink the GIF** (the recorder saves every frame whole; a raw export can be over 10 MB). Install
+`gifsicle` with `scoop install gifsicle`, then:
+
+```bash
+# 1. Lossless re-optimisation + 128 colors: ~11 MB -> ~1.3 MB, visually identical
+gifsicle -O3 --colors 128 raw.gif -o demo.gif
+
+# 2. Drop every second frame and double each delay (same speed, half the frames): ~0.8 MB
+#    (delays are uniform in recorder output; check with: gifsicle --info demo.gif)
+gifsicle -U --delay=16 demo.gif $(seq -f "#%g" 0 2 <lastframe>) -O3 --colors 128 -o demo-small.gif
+
+# 3. Cut a section (keep frames 0-72 and 118-172, drop the rest)
+gifsicle -U --delay=16 demo-small.gif '#0-72' '#118-172' -O3 --colors 128 -o demo-final.gif
+```
+
+- Do not use `--resize-width` or `--lossy` here: resizing scrambled the frame delays and lossy made the
+  file larger in testing.
+- To find cut points, split into full frames with `gifsicle -U --explode -o frame demo.gif`, then give the
+  files a `.gif` extension to open them in an image viewer. At 6.25 FPS, frame number x 0.16 s is the time.
+- Target: GIF under about 1 MB; each PNG under 100 KB.
+
 ---
 
 ## Automatic Token Tracking (v2.3.0+)

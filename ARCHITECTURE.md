@@ -1,6 +1,6 @@
 # Claude Usage Monitor - Architecture Guide
 
-**Version:** 2.8.0
+**Version:** 2.8.1
 **Last Updated:** 2025-11-24
 **Purpose:** Technical architecture reference for Claude AI assistant sessions
 

@@ -19,5 +19,6 @@ cleanup-browser.js
 # Exclude node_modules since we bundle everything
 node_modules/**
 !node_modules/.bin
-# Keep only the bundled output
-!dist/**
+# Keep only the bundled output. The plain "extension.js" ignore above also matches dist/extension.js,
+# so re-include just the bundle (not dist/** - that would also ship the dev source map).
+!dist/extension.js
