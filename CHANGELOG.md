@@ -4,6 +4,11 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
 
 ## [2.8.1] - 2026-11-12
 
+### Changed
+- **Smaller package**: the `.vsix` no longer ships `dist/extension.js.map`. It is a debugging aid
+  (written only by `npm run build`), and the one that was being packaged was stale. `.vscodeignore`
+  now re-includes only `dist/extension.js` instead of `dist/**`. Package size 1.55 MB to 1.17 MB.
+
 ### Documentation
 - Refreshed the README screenshots and demo GIF for the current UI (Usage Pace tooltip, new
   settings, the Claude Usage panel). The previous images dated from v2.3.x. This release exists so
