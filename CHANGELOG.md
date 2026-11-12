@@ -10,6 +10,9 @@ All notable changes to the "claude-usage-monitor" extension will be documented i
   background browser (including one this window only connected to, or one left over from an earlier
   session), deletes `~/.claude-browser-session/`, forgets cached request state and clears the
   displayed usage. The next fetch opens a visible browser for a fresh login.
+  Any browser still using the session folder (for example one started by an older version, which
+  cannot be reached over the debugging port) is stopped first, because it would otherwise keep the
+  folder locked (`EPERM` on Windows).
 
 ### Changed
 - **Dynamic debugging port (#27)**: the background browser no longer uses the fixed port 9222. Chrome

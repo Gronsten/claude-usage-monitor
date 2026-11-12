@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const vscode = require('vscode');
 // Claude.ai serves usage as a settings modal on a hash route
 const DEFAULT_USAGE_URL = 'https://claude.ai/new#settings/usage';
@@ -743,6 +744,30 @@ class ClaudeUsageScraper {
     }
 
     /**
+     * Force-stop any Chrome/Edge/Chromium process whose command line uses our
+     * session directory (the profile locks until they exit). Best effort.
+     * @returns {Promise<void>}
+     */
+    killSessionBrowsers() {
+        return new Promise(resolve => {
+            const done = () => setTimeout(resolve, 1500); // let file locks release
+            if (process.platform === 'win32') {
+                // The directory is passed via the environment, not the command line,
+                // so this PowerShell process never matches its own filter.
+                const script = '$d=$env:CU_SESSION_DIR; Get-CimInstance Win32_Process | ' +
+                    "Where-Object { $_.Name -match 'chrome|msedge|chromium' -and $_.CommandLine -and " +
+                    '$_.CommandLine.IndexOf($d,[StringComparison]::OrdinalIgnoreCase) -ge 0 } | ' +
+                    'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }';
+                execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
+                    { env: { ...process.env, CU_SESSION_DIR: this.sessionDir }, windowsHide: true },
+                    done);
+            } else {
+                execFile('pkill', ['-f', `--user-data-dir=${this.sessionDir}`], done);
+            }
+        });
+    }
+
+    /**
      * Reset a stuck login: close the background browser (including one this
      * session only connected to, or one left over from an earlier session),
      * delete the saved session directory and forget cached request state. The
@@ -755,6 +780,10 @@ class ClaudeUsageScraper {
             await this.tryConnectToExisting();
         }
         await this.shutdownBrowser();
+        // A browser started by an older version (fixed port, stale or missing
+        // DevToolsActivePort) cannot be reached over CDP and would keep the
+        // profile locked, so stop anything still using our session dir.
+        await this.killSessionBrowsers();
 
         let removed = false;
         if (fs.existsSync(this.sessionDir)) {
