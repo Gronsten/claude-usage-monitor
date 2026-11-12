@@ -2,6 +2,18 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.8.1] - 2026-11-12
+
+### Documentation
+- Refreshed the README screenshots and demo GIF for the current UI (Usage Pace tooltip, new
+  settings, the Claude Usage panel). The previous images dated from v2.3.x. This release exists so
+  the marketplace listing, which is built from the packaged README, shows them.
+- Demo GIF optimised from an 11 MB recording to about 0.55 MB, with the section where the cursor
+  searches for the panel trimmed out.
+- README captions updated; project docs gained a "Documentation images" capture guide.
+
+No code changes.
+
 ## [2.8.0] - 2026-11-12
 
 ### Added
