@@ -213,6 +213,28 @@ async function activate(context) {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('claude-usage.clearSession', async () => {
+            const choice = await vscode.window.showWarningMessage(
+                'Clear the saved Claude browser session? This closes the background browser and deletes ~/.claude-browser-session. You will need to log in to Claude.ai again.',
+                { modal: true },
+                'Clear Session'
+            );
+            if (choice !== 'Clear Session') {
+                return;
+            }
+            try {
+                await dataProvider.clearSession();
+                await updateStatusBarWithAllData();
+                vscode.window.showInformationMessage(
+                    'Claude session cleared. Run "Claude: Fetch Claude Usage Now" to log in again.'
+                );
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to clear Claude session: ${error.message}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand('claude-usage.openSettings', async () => {
             await vscode.env.openExternal(vscode.Uri.parse('https://claude.ai/settings'));
         })

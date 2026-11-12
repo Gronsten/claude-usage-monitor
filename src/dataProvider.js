@@ -148,6 +148,18 @@ class UsageDataProvider {
   }
 
   /**
+   * Reset the saved browser login (see ClaudeUsageScraper.clearSession) and
+   * drop cached web usage so the tree does not show stale data.
+   * @returns {Promise<boolean>} True if a session directory was removed
+   */
+  async clearSession() {
+    const removed = await this.scraper.clearSession();
+    this.usageData = null;
+    this.refresh();
+    return removed;
+  }
+
+  /**
    * Fetch usage data from Claude.ai
    * Note: This method is resilient - it will succeed even if web scraping fails
    * since session token data is read from local JSON file independently

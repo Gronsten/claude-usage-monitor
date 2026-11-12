@@ -177,6 +177,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 - **`Claude: Fetch Claude Usage Now`** - Manually fetch current usage data
 - **`Claude: Open Claude Settings Page`** - Open claude.ai/settings in your default browser
+- **`Claude: Clear Saved Login Session`** - Close the background browser and delete the saved login (`~/.claude-browser-session/`) after a confirmation; use it when login is stuck
 
 ## How It Works
 
@@ -218,6 +219,14 @@ The extension automatically refreshes usage data at configurable intervals:
 **Solutions**:
 - Update to v2.7.1 or later; the extension now reopens the browser tab (or relaunches the browser) automatically
 - On older versions, reload the VS Code window (`Developer: Reload Window`) to reset the scraper
+
+### Login is stuck (expired session, repeated Cloudflare challenges)
+
+**Problem**: Fetches keep failing or asking for verification even after you log in
+
+**Solutions**:
+- Run `Claude: Clear Saved Login Session` from the Command Palette, then `Claude: Fetch Claude Usage Now` and log in again
+- Before v2.8.0 the only fix was closing the background Chrome and deleting `~/.claude-browser-session/` by hand
 
 ### Browser won't launch
 

@@ -1,6 +1,6 @@
 # Claude Usage Monitor - Architecture Guide
 
-**Version:** 2.7.1
+**Version:** 2.8.0
 **Last Updated:** 2025-11-24
 **Purpose:** Technical architecture reference for Claude AI assistant sessions
 
@@ -220,7 +220,9 @@ let jsonlWatcher;          // File system watcher
 
 | Function | Purpose | Details |
 |----------|---------|---------|
-| `initialize(forceHeaded)` | Launch/connect browser | Tries port 9222 connection first, falls back to launch |
+| `initialize(forceHeaded)` | Launch/connect browser | Tries to reconnect to our own browser (endpoint from `DevToolsActivePort`) first, falls back to launch |
+| `readSavedEndpoint()` | Find our running browser | Parses `~/.claude-browser-session/DevToolsActivePort` (port + per-run browser id) into a `ws://` endpoint |
+| `clearSession()` | Reset a stuck login | Closes the browser (even an orphan), deletes the session dir, clears cached API state |
 | `hasExistingSession()` | Check for saved cookies | Looks in `~/.claude-browser-session/` |
 | `ensureLoggedIn()` | Wait for authentication | Max 5 minutes, shows browser if needed |
 | `setupRequestInterception()` | Capture API endpoints | Intercepts `/api/organizations/*/usage` requests |
@@ -591,7 +593,7 @@ dataProvider.fetchUsage()
 ┌──────────────────────────────────────────┐
 │ 1. Initialize Browser                     │
 │    scraper.initialize()                   │
-│    ├─ Try connect to port 9222            │
+│    ├─ Try reconnect via DevToolsActivePort│
 │    ├─ Fall back to launch new browser     │
 │    └─ Check for saved session cookies     │
 └──────────────────────────────────────────┘
@@ -1259,6 +1261,17 @@ ls ~/.claude/projects/*.jsonl
   `usagePercent` and elapsed time (5-hour window minus parsed `resetTime`, see `parseResetMinutes()` in
   `utils.js`). Levels: `low` (<70% projected), `medium` (70-100%), `high` (>100%). Consumed by
   `statusBar.js` (icon/tooltip) and `dataProvider.js` (tree icon).
+
+## v2.8.0 Changes
+
+- **Dynamic debugging port** (`src/scraper.js`): launch passes `--remote-debugging-port=0`; Chrome
+  writes `<sessionDir>/DevToolsActivePort` (line 1 port, line 2 `/devtools/browser/<guid>`).
+  `readSavedEndpoint()` turns it into a `ws://` URL and `tryConnectToExisting()` connects with
+  `browserWSEndpoint`, so only a browser that owns our session dir (and knows the guid) is adopted.
+  A stale file after a crash just fails to connect and a new browser is launched.
+- **Clear Session** (`claude-usage.clearSession`): command in `extension.js` (modal confirmation) calls
+  `dataProvider.clearSession()` -> `scraper.clearSession()`: attach to an orphaned browser if any,
+  `shutdownBrowser()`, `fs.rmSync(sessionDir)` with retries, reset `apiEndpoint`/`apiHeaders`.
 
 ## v2.7.1 Changes
 

@@ -2,6 +2,27 @@
 
 All notable changes to the "claude-usage-monitor" extension will be documented in this file.
 
+## [2.8.0] - 2026-11-12
+
+### Added
+- **`Claude: Clear Saved Login Session` command (#28)**: resets a stuck login (expired session,
+  repeated Cloudflare challenges, corrupted profile). After a confirmation prompt it closes the
+  background browser (including one this window only connected to, or one left over from an earlier
+  session), deletes `~/.claude-browser-session/`, forgets cached request state and clears the
+  displayed usage. The next fetch opens a visible browser for a fresh login.
+
+### Changed
+- **Dynamic debugging port (#27)**: the background browser no longer uses the fixed port 9222. Chrome
+  picks a free port (`--remote-debugging-port=0`) and records it, with a per-run browser id, in
+  `~/.claude-browser-session/DevToolsActivePort`. The extension reconnects to its own browser by
+  reading that file, so a Chrome you started with `--remote-debugging-port=9222` is never adopted or
+  driven, a busy 9222 no longer blocks launching, and reconnecting after an extension-host restart
+  still works.
+
+### Documentation
+- README command list and troubleshooting entry for a stuck login; ARCHITECTURE updated for the
+  dynamic port and `clearSession()`.
+
 ## [2.7.1] - 2026-11-09
 
 ### Fixed
