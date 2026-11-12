@@ -14,14 +14,14 @@ Monitor your Claude.ai usage directly in VS Code, and see at a glance whether yo
 
 ![Demo](assets/demo.gif)
 
-*See the extension in action: automatic usage fetching, status bar updates, and detailed usage breakdowns*
+*See the extension in action: a status bar refresh, the usage pace tooltip, and the Claude Usage panel*
 
 ## Screenshots
 
 ### Status Bar Integration
 ![Status Bar](screenshots/status-bar.png)
 
-Dual usage display showing both Claude.ai web usage and Claude Code token consumption at a glance.
+Your Claude.ai 5-hour usage at a glance, with an icon colored by usage pace.
 
 ### Detailed Tooltip
 ![Hover Tooltip](screenshots/tooltip.png)
@@ -36,7 +36,7 @@ Dedicated activity bar panel with 5-hour usage, reset countdown and a usage tren
 ### Configuration Settings
 ![Settings](screenshots/settings.png)
 
-Simple configuration options for auto-refresh intervals and behavior customization.
+Options for auto-refresh interval, headless mode, the usage page URL and more.
 
 ## Features
 
