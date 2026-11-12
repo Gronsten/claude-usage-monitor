@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const vscode = require('vscode');
 // Claude.ai serves usage as a settings modal on a hash route
 const DEFAULT_USAGE_URL = 'https://claude.ai/new#settings/usage';
@@ -12,7 +13,9 @@ class ClaudeUsageScraper {
         this.page = null;
         this.sessionDir = path.join(os.homedir(), '.claude-browser-session');
         this.isInitialized = false;
-        this.debugPort = 9222; // Chrome remote debugging port
+        // The browser picks a free debugging port itself (--remote-debugging-port=0)
+        // and records it in <sessionDir>/DevToolsActivePort. We never hardcode a port,
+        // so another tool's Chrome on 9222 can no longer be mistaken for ours.
         this.isConnectedBrowser = false; // Track if we connected vs launched
         this.apiEndpoint = null; // Captured API endpoint URL
         this.apiHeaders = null; // Captured API request headers
@@ -76,14 +79,39 @@ class ClaudeUsageScraper {
     }
 
     /**
-     * Try to connect to an existing browser instance
+     * Read the debugging endpoint of the browser that owns our session directory.
+     * Chrome writes DevToolsActivePort (line 1: port, line 2: browser WebSocket
+     * path, which contains a per-run GUID) into its user data dir. Only a browser
+     * started on this session dir can have written it, so this identifies OUR
+     * browser and never another tool's.
+     * @returns {string|null} ws:// endpoint, or null if none is recorded
+     */
+    readSavedEndpoint() {
+        try {
+            const file = path.join(this.sessionDir, 'DevToolsActivePort');
+            const [port, wsPath] = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+            if (!/^\d+$/.test(port || '') || !(wsPath || '').startsWith('/devtools/browser/')) {
+                return null;
+            }
+            return `ws://127.0.0.1:${port}${wsPath}`;
+        } catch (error) {
+            return null; // no file: no browser of ours is running
+        }
+    }
+
+    /**
+     * Try to connect to the browser we started earlier (same session dir).
+     * A stale DevToolsActivePort (browser crashed) simply fails to connect.
      * @returns {Promise<boolean>} True if connected successfully
      */
     async tryConnectToExisting() {
+        const browserWSEndpoint = this.readSavedEndpoint();
+        if (!browserWSEndpoint) {
+            return false;
+        }
         try {
-            const browserURL = `http://127.0.0.1:${this.debugPort}`;
             this.browser = await puppeteer.connect({
-                browserURL,
+                browserWSEndpoint,
                 defaultViewport: null // Use the browser's viewport
             });
 
@@ -189,7 +217,7 @@ class ClaudeUsageScraper {
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-blink-features=AutomationControlled',
-                    `--remote-debugging-port=${this.debugPort}` // Enable remote debugging
+                    '--remote-debugging-port=0' // Chrome picks a free port and records it in DevToolsActivePort
                 ],
                 defaultViewport: {
                     width: 1280,
@@ -202,7 +230,7 @@ class ClaudeUsageScraper {
                 launchOptions.executablePath = executablePath;
             }
 
-            console.log(`Launching new browser with remote debugging on port ${this.debugPort}`);
+            console.log('Launching new browser with a dynamic remote debugging port');
             this.browser = await puppeteer.launch(launchOptions);
 
             this.page = await this.browser.newPage();
@@ -391,7 +419,7 @@ class ClaudeUsageScraper {
         this.page = null;
         this.isInitialized = false;
         this.isConnectedBrowser = false;
-        await this.sleep(1500); // let the debug port free up before relaunching
+        await this.sleep(1500); // let the profile lock release before relaunching
     }
 
     /**
@@ -713,6 +741,60 @@ class ClaudeUsageScraper {
             }
             throw error;
         }
+    }
+
+    /**
+     * Force-stop any Chrome/Edge/Chromium process whose command line uses our
+     * session directory (the profile locks until they exit). Best effort.
+     * @returns {Promise<void>}
+     */
+    killSessionBrowsers() {
+        return new Promise(resolve => {
+            const done = () => setTimeout(resolve, 1500); // let file locks release
+            if (process.platform === 'win32') {
+                // The directory is passed via the environment, not the command line,
+                // so this PowerShell process never matches its own filter.
+                const script = '$d=$env:CU_SESSION_DIR; Get-CimInstance Win32_Process | ' +
+                    "Where-Object { $_.Name -match 'chrome|msedge|chromium' -and $_.CommandLine -and " +
+                    '$_.CommandLine.IndexOf($d,[StringComparison]::OrdinalIgnoreCase) -ge 0 } | ' +
+                    'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }';
+                execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
+                    { env: { ...process.env, CU_SESSION_DIR: this.sessionDir }, windowsHide: true },
+                    done);
+            } else {
+                execFile('pkill', ['-f', `--user-data-dir=${this.sessionDir}`], done);
+            }
+        });
+    }
+
+    /**
+     * Reset a stuck login: close the background browser (including one this
+     * session only connected to, or one left over from an earlier session),
+     * delete the saved session directory and forget cached request state. The
+     * next fetch launches a visible browser for a fresh login.
+     * @returns {Promise<boolean>} True if a session directory was removed
+     */
+    async clearSession() {
+        // Attach to an orphaned browser of ours so Browser.close can stop it.
+        if (!this.browser) {
+            await this.tryConnectToExisting();
+        }
+        await this.shutdownBrowser();
+        // A browser started by an older version (fixed port, stale or missing
+        // DevToolsActivePort) cannot be reached over CDP and would keep the
+        // profile locked, so stop anything still using our session dir.
+        await this.killSessionBrowsers();
+
+        let removed = false;
+        if (fs.existsSync(this.sessionDir)) {
+            // Chrome can hold files briefly after exit (notably on Windows): retry.
+            fs.rmSync(this.sessionDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+            removed = true;
+        }
+        this.apiEndpoint = null;
+        this.apiHeaders = null;
+        this.verifying = null;
+        return removed;
     }
 
     /**
